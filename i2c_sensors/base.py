@@ -1,5 +1,4 @@
 from __future__ import annotations
-from dataclasses import dataclass
 from typing import Iterable, Dict, Any, Optional, List, Tuple
 import time
 
@@ -10,18 +9,24 @@ except ImportError:  # fall back to smbus if needed
     from smbus import SMBus  # type: ignore
 
 
-@dataclass
 class I2CConfig:
     bus: int
     address: int
     freq_hz: Optional[int] = None  # informational; not configured here
 
+    def __init__(self, bus: int, address: int, freq_hz: Optional[int] = None):
+        self.bus = bus
+        self.address = address
+        self.freq_hz = freq_hz
 
 class I2CDevice:
     """
     Thin base for I²C register devices. Methods are intentionally small & explicit
     to make a later C++ port straightforward.
     """
+    cfg: I2CConfig
+    bus: SMBus
+
     def __init__(self, cfg: I2CConfig):
         self.cfg = cfg
         self.bus = SMBus(cfg.bus)

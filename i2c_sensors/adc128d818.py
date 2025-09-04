@@ -1,7 +1,7 @@
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 from .base import I2CDevice
+import time
 
 # Key registers
 REG_CONFIG          = 0x00
@@ -17,18 +17,46 @@ REG_READING_BASE    = 0x20  # 0x20..0x27 inclusive (IN0..IN7 / temp as assigned)
 INTERNAL_VREF_V = 2.56     # default internal Vref (0.625mV/LSB)
 ADC_LSB_V       = INTERNAL_VREF_V / 4096.0
 
-@dataclass
 class ADC128ChannelReading:
     raw: int
     volts: float
 
+    def __init__(self, raw: int, volts: float):
+        self.raw = raw
+        self.volts = volts
+
+class ADC128D818Config:
+    start: bool = True
+    continuous: bool = True
+    disable_mask: int = 0x00
+    extResistorMultipliers: List[float] = [1.0] * 8 # if using external Vref divider
+
+    def __init__(self,  
+                 start: bool = True,
+                 continuous: bool = True,
+                 disable_mask: int = 0x00,
+                 extResistorMultipliers: List[float] = [1.0] * 8):
+        self.start = start
+        self.continuous = continuous
+        self.disable_mask = disable_mask
+        if len(extResistorMultipliers) != 8:
+            raise ValueError("extResistorMultipliers must be length 8")
+        self.extResistorMultipliers = extResistorMultipliers
+
 class ADC128D818(I2CDevice):
+    # extResistorMultipliers: List[float] = [1.0] * 8 # if using external Vref divider
+    config: ADC128D818Config
+
     """
     TI ADC128D818 – 8ch, 12-bit ΔΣ ADC w/ temp sensor and internal 2.56V Vref.
     """
     def _start(self, enable: bool) -> None:
+        cfg = 0b00000000 
+        self.write_u8(REG_CONFIG, cfg)
+        time.sleep(0.01)  # per datasheet, 10ms after clearing START
         # Bit0 START, Bit1 INT_Enable, Bit3 INT_Clear, Bit7 INITIALIZATION
         cfg = self.read_u8(REG_CONFIG)
+        print(f"_start: cfg before: 0x{cfg:08b}")
         if enable:
             cfg |= 0b00000001
         else:
@@ -36,9 +64,8 @@ class ADC128D818(I2CDevice):
         self.write_u8(REG_CONFIG, cfg)
 
     def configure(self,
-                  start: bool = True,
-                  continuous: bool = True,
-                  disable_mask: int = 0x00) -> None:
+                  config: ADC128D818Config
+                  ) -> None:
         """
         - start: set START bit
         - continuous: if False, set low-power conversion (convert all enabled, then shutdown)
@@ -47,11 +74,12 @@ class ADC128D818(I2CDevice):
         # Enter shutdown to tweak conversion rate & channel disable
         self._start(False)
         # Conversion Rate: bit0=1 continuous, 0 low-power; only valid in shutdown
-        self.write_u8(REG_CONV_RATE, 0x01 if continuous else 0x00)
+        self.write_u8(REG_CONV_RATE, 0x01 if config.continuous else 0x00)
         # Disable channels (1=disable). Only valid in shutdown.
-        self.write_u8(REG_CH_DISABLE, disable_mask & 0xFF)
+        self.write_u8(REG_CH_DISABLE, config.disable_mask & 0xFF)
         # Start sampling if requested
-        if start:
+        self.config = config
+        if config.start:
             self._start(True)
 
     def trigger_one_shot(self) -> None:
@@ -71,18 +99,29 @@ class ADC128D818(I2CDevice):
     def read_channel_raw(self, index: int) -> int:
         if not (0 <= index <= 7):
             raise ValueError("channel index 0..7")
+        if self.config.continuous is False:
+            self.trigger_one_shot()
+            time.sleep(0.05)  # allow time for conversion;
         return self.read_u16_be(REG_READING_BASE + index)
+
+    def read_channel(self, index: int) -> Tuple[float, int]:
+        if not (0 <= index <= 7):
+            raise ValueError("channel index 0..7")
+        raw = self.read_channel_raw(index)
+        # 12-bit value is left-justified in a 16-bit reg in many TI monitors;
+        # Datasheet states 16-bit reg to accommodate 12-bit reading (or 9-bit temp).
+        # We assume upper 12 bits; if using full 16, adjust here easily.
+        value_12b = (raw >> 4) & 0x0FFF
+        volts = value_12b * self.config.extResistorMultipliers[index] * ADC_LSB_V
+        return volts, raw
 
     def read_channels(self, active_mask: int = 0xFF) -> Dict[str, Any]:
         readings: Dict[str, Any] = {}
         for ch in range(8):
             if (active_mask >> ch) & 0x1:
-                raw = self.read_channel_raw(ch)
-                # 12-bit value is left-justified in a 16-bit reg in many TI monitors;
-                # Datasheet states 16-bit reg to accommodate 12-bit reading (or 9-bit temp).
-                # We assume upper 12 bits; if using full 16, adjust here easily.
-                value_12b = (raw >> 4) & 0x0FFF
-                volts = value_12b * ADC_LSB_V
-                readings[f"in{ch}_v"] = volts
-                readings[f"in{ch}_raw"] = raw
+                volts, raw = self.read_channel(ch)
+                readings[f"ch_{ch}"] = {"raw":raw, "v": volts}
+                print(f"Reading channel {ch}: {volts:.4f} V (raw 0x{raw:04X})")
+                # readings[f"in{ch}_v"] = volts
+                # readings[f"in{ch}_raw"] = raw
         return readings

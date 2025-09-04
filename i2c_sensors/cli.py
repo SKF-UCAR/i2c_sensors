@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 from .base import I2CConfig
 from .ina260 import INA260
-from .adc128d818 import ADC128D818
+from .adc128d818 import ADC128D818, ADC128D818Config
 from .export import write_auto
 
 def main():
@@ -32,7 +32,13 @@ def main():
 
     if args.adc128 is not None:
         dev = ADC128D818(I2CConfig(args.bus, args.adc128))
-        dev.configure(start=True, continuous=True, disable_mask=0x00)
+        conf = ADC128D818Config( 
+            start = True,
+            continuous = True,
+            disable_mask = 0x00,
+            extResistorMultipliers = [1.0] * 8 )
+        dev.configure(conf)
+        
         for _ in range(args.count):
             d = dev.read_channels()
             d["t"] = time.time() - t0
