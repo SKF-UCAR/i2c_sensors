@@ -1,7 +1,10 @@
 from __future__ import annotations
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 from .base import I2CDevice
+import i2c_sensors.utils as utils
 import time
+import logging
+
 
 # Key registers
 REG_CONFIG          = 0x00
@@ -20,6 +23,7 @@ REG_LIMITS_BASE     = 0x2A  # IN0 -> 0x2A high, 0x2B low (then IN1, etc) Depends
 INTERNAL_VREF_V = 2.56     # default internal Vref (0.625mV/LSB)
 ADC_LSB_V       = INTERNAL_VREF_V / 4096.0
 
+
 class ADC128ChannelReading:
     raw: int
     volts: float
@@ -37,18 +41,21 @@ class ADC128D818Config:
     - extResistorMultipliers: List of 8 floats, one per channel, to scale readings if using
         external Vref divider. E.g. for a 10k/30k divider, multiplier is 4.0 (Vout=Vin*10k/40k).
     """
+    _CHAN_ERROR_MSG = "Channel index must be within [0..7]"
     start: bool = True
     continuous: bool = True
     disable_mask: int = 0x00
     mode: int = 0x00 # 0-3, see datasheet
     extResistorMultipliers: List[float] = [1.0] * 8 # if using external Vref divider
+    log : logging.Logger = utils.get_logger("ADC128D818")
 
     def __init__(self,  
                  start: bool = True,
                  continuous: bool = True,
                  disable_mask: int = 0x00,
                  mode: int = 0x00,
-                 extResistorMultipliers: List[float] = [1.0] * 8):
+                 extResistorMultipliers: List[float] = [1.0] * 8,
+                 log: Optional[logging.Logger] = None):
         self.start = start
         self.continuous = continuous
         self.disable_mask = disable_mask
@@ -56,6 +63,8 @@ class ADC128D818Config:
         if len(extResistorMultipliers) != 8:
             raise ValueError("extResistorMultipliers must be length 8")
         self.extResistorMultipliers = extResistorMultipliers
+        if log is not None:
+            self.log = log
 
 class ADC128D818(I2CDevice):
     # extResistorMultipliers: List[float] = [1.0] * 8 # if using external Vref divider
@@ -72,7 +81,6 @@ class ADC128D818(I2CDevice):
         else:
             cfg &= ~0b00000001
         self.write_u8(REG_CONFIG, cfg)
-        print(f"_start: cfg : 0x{cfg:08b}")
 
     def configure(self,
                   config: ADC128D818Config
@@ -93,7 +101,9 @@ class ADC128D818(I2CDevice):
 
         # wait for ready
         if not self.wait_until_ready(timeout=1.0):
-            raise TimeoutError("Timeout waiting for ADC128D818 to become ready after reset")
+            err_msg = "Timeout waiting for ADC128D818 to become ready after reset"
+            self.config.log.error(err_msg)
+            raise TimeoutError(err_msg)
 
         # set the advanced config:
         # Bit0=1 internal Vref (0=external), 
@@ -121,14 +131,14 @@ class ADC128D818(I2CDevice):
         if self.config.start:
             self._start(True)
 
-        print(f"configure: config      : 0x{self.read_u8(REG_CONFIG):08b}")
-        print(f"configure: int_status  : 0x{self.read_u8(REG_INT_STATUS):08b}")
-        print(f"configure: int_mask    : 0x{self.read_u8(REG_INT_MASK):08b}")
-        print(f"configure: conv_rate   : 0x{self.read_u8(REG_CONV_RATE):08b}")
-        print(f"configure: ch_disable  : 0x{self.read_u8(REG_CH_DISABLE):08b}")
-        print(f"configure: deep_shdwn  : 0x{self.read_u8(REG_DEEP_SHUTDOWN):08b}")
-        print(f"configure: adv_config  : 0x{self.read_u8(REG_ADV_CONFIG):08b}")
-        print(f"configure: busy_status : 0x{self.read_u8(REG_BUSY_STATUS):08b}")
+        self.config.log.debug(f"configure: config      : 0b{self.read_u8(REG_CONFIG):08b}")
+        self.config.log.debug(f"configure: int_status  : 0b{self.read_u8(REG_INT_STATUS):08b}")
+        self.config.log.debug(f"configure: int_mask    : 0b{self.read_u8(REG_INT_MASK):08b}")
+        self.config.log.debug(f"configure: conv_rate   : 0b{self.read_u8(REG_CONV_RATE):08b}")
+        self.config.log.debug(f"configure: ch_disable  : 0b{self.read_u8(REG_CH_DISABLE):08b}")
+        self.config.log.debug(f"configure: deep_shdwn  : 0b{self.read_u8(REG_DEEP_SHUTDOWN):08b}")
+        self.config.log.debug(f"configure: adv_config  : 0b{self.read_u8(REG_ADV_CONFIG):08b}")
+        self.config.log.debug(f"configure: busy_status : 0b{self.read_u8(REG_BUSY_STATUS):08b}")
 
     def wait_until_ready(self, timeout: float = 1.0) -> bool:
         t0 = time.time()
@@ -145,7 +155,9 @@ class ADC128D818(I2CDevice):
         self.read_u8(REG_INT_STATUS)  # clear any pending interrupt
         self.write_u8(REG_ONE_SHOT, 0x01)
         if not self.wait_until_ready(timeout=1.0):
-            raise TimeoutError("Timeout waiting for ADC128D818 to complete one-shot conversion")
+            err_msg = "Timeout waiting for ADC128D818 to complete one-shot conversion"
+            self.config.log.error(err_msg) 
+            raise TimeoutError(err_msg)
 
     def deep_shutdown(self, enable: bool) -> None:
         # Enter deep shutdown after clearing START; exit by writing 0
@@ -156,16 +168,20 @@ class ADC128D818(I2CDevice):
             self.write_u8(REG_DEEP_SHUTDOWN, 0x00)
 
     def set_limits_raw(self, index: int, low: int, high: int) -> None:
+        """Set high/low limit registers for channel index (0..7) using raw 16-bit values """
         if not (0 <= index <= 7):
-            raise ValueError("channel index 0..7")
+            self.config.log.error(self._CHAN_ERROR_MSG)
+            raise ValueError(self._CHAN_ERROR_MSG)
         # Set low/high limit registers (16-bit values)
         reg = REG_LIMITS_BASE + index * 2
         self.write_u16_be(reg, high & 0xFFFF)
         self.write_u16_be(reg + 1, low & 0xFFFF)
 
     def read_channel_raw(self, index: int) -> int:
+        """Read raw 16-bit value from channel register (no conversion)"""
         if not (0 <= index <= 7):
-            raise ValueError("channel index 0..7")
+            self.config.log.error(self._CHAN_ERROR_MSG)
+            raise ValueError(self._CHAN_ERROR_MSG)
         self.read_u8(REG_INT_STATUS)
         return self.read_u16_be(REG_READING_BASE + index)
     
@@ -178,8 +194,10 @@ class ADC128D818(I2CDevice):
         return volts
 
     def read_channel(self, index: int) -> Tuple[float, int]:
+        """Read single channel; return (volts, raw) tuple"""
         if not (0 <= index <= 7):
-            raise ValueError("channel index 0..7")
+            self.config.log.error(self._CHAN_ERROR_MSG)
+            raise ValueError(self._CHAN_ERROR_MSG)
         
         if self.config.continuous is False:
             self.trigger_one_shot()
@@ -187,10 +205,11 @@ class ADC128D818(I2CDevice):
         self.wait_until_ready(timeout=1.0)
         raw = self.read_channel_raw(index)
         volts = self._convert_raw_to_volts(raw, index)
-        print(f"Reading channel {index}: {volts:9.4f} (raw 0x{raw:04X})")
+        self.config.log.debug(f"Reading channel {index}: {volts:9.4f} (raw 0x{raw:04X})")
         return volts, raw
 
     def read_channels(self, active_mask: int = 0xFF) -> Dict[str, Any]:
+        """Read all enabled channels; return dict of { "ch_0": {"raw":.., "val":..}, ... }"""
         readings: Dict[str, Any] = {}
 
         if self.config.continuous is False:
@@ -203,7 +222,5 @@ class ADC128D818(I2CDevice):
                 raw = self.read_channel_raw(ch)
                 volts = self._convert_raw_to_volts(raw, ch)
                 readings[f"ch_{ch}"] = {"raw":raw, "val": volts}
-                print(f"Reading channel {ch}: {volts:9.4f} (raw 0x{raw:04X})")
-                # readings[f"in{ch}_v"] = volts
-                # readings[f"in{ch}_raw"] = raw
+                self.config.log.debug(f"Reading channel {ch}: {volts:9.4f} (raw 0x{raw:04X})")
         return readings
