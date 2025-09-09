@@ -12,7 +12,9 @@ REG_CH_DISABLE      = 0x08
 REG_ONE_SHOT        = 0x09
 REG_DEEP_SHUTDOWN   = 0x0A
 REG_ADV_CONFIG      = 0x0B
+REG_BUSY_STATUS     = 0x0C
 REG_READING_BASE    = 0x20  # 0x20..0x27 inclusive (IN0..IN7 / temp as assigned)
+REG_LIMITS_BASE     = 0x2A  # IN0 -> 0x2A high, 0x2B low (then IN1, etc) Depends on mode
 
 # Helpers
 INTERNAL_VREF_V = 2.56     # default internal Vref (0.625mV/LSB)
@@ -50,7 +52,7 @@ class ADC128D818Config:
         self.start = start
         self.continuous = continuous
         self.disable_mask = disable_mask
-        self.mode = (mode & 0x03) << 1
+        self.mode = (mode & 0x03)
         if len(extResistorMultipliers) != 8:
             raise ValueError("extResistorMultipliers must be length 8")
         self.extResistorMultipliers = extResistorMultipliers
@@ -82,42 +84,68 @@ class ADC128D818(I2CDevice):
             - disable_mask: bit i disables channel i when set. Must be done in shutdown.
             - extResistorMultipliers: List of 8 floats, one per channel, to scale readings
         """
-        # Enter shutdown to tweak conversion rate & channel disable
-        self._start(False)
         self.config = config
 
+        # Reset
         cfg = 0b10000000 
         self.write_u8(REG_CONFIG, cfg)
         time.sleep(0.01)  # per datasheet, 10ms after clearing START
 
-        self.deep_shutdown(True)  # exit deep shutdown if set
+        # wait for ready
+        if not self.wait_until_ready(timeout=1.0):
+            raise TimeoutError("Timeout waiting for ADC128D818 to become ready after reset")
+
+        # set the advanced config:
+        # Bit0=1 internal Vref (0=external), 
+        # Bit1..1=MODE 0..3
+        self.write_u8(REG_ADV_CONFIG, self.config.mode << 1) 
 
         # Conversion Rate: bit0=1 continuous, 0 low-power; only valid in shutdown
-        self.write_u8(REG_CONV_RATE, 0x01 if config.continuous else 0x00)
+        self.write_u8(REG_CONV_RATE, 0x01 if self.config.continuous else 0x00)
 
         # Disable channels (1=disable). Only valid in shutdown.
-        self.write_u8(REG_CH_DISABLE, config.disable_mask & 0xFF)
+        self.write_u8(REG_CH_DISABLE, self.config.disable_mask & 0xFF)
 
+        # Disable channels interrupt mask.
+        self.write_u8(REG_INT_MASK, 0x00)  # all disabled
 
-        self.write_u8(REG_ADV_CONFIG, self.config.mode)  # advanced config - mode 1
+        # Set limits for all channels (example values here, adjust as needed)
+        for i in range(8):
+            self.set_limits_raw(i, 0x0000, 0x0FFF)  # channel 0 limits as example
+
+        cfg = 0b00000000 
+        self.write_u8(REG_CONFIG, cfg)
+        time.sleep(0.01)  # per datasheet, 10ms after clearing START        
 
         # Start sampling if requested
-        if config.start:
+        if self.config.start:
             self._start(True)
 
-        cfg = self.read_u8(REG_CONFIG)
-        print(f"configure: cfg : 0x{cfg:08b}")
-        print(f"configure: conv_rate : 0x{self.read_u8(REG_CONV_RATE):08b}")
-        print(f"configure: ch_disable : 0x{self.read_u8(REG_CH_DISABLE):08b}")
-        print(f"configure: adv_config : 0x{self.read_u8(REG_ADV_CONFIG):08b}")
+        print(f"configure: config      : 0x{self.read_u8(REG_CONFIG):08b}")
+        print(f"configure: int_status  : 0x{self.read_u8(REG_INT_STATUS):08b}")
+        print(f"configure: int_mask    : 0x{self.read_u8(REG_INT_MASK):08b}")
+        print(f"configure: conv_rate   : 0x{self.read_u8(REG_CONV_RATE):08b}")
+        print(f"configure: ch_disable  : 0x{self.read_u8(REG_CH_DISABLE):08b}")
+        print(f"configure: deep_shdwn  : 0x{self.read_u8(REG_DEEP_SHUTDOWN):08b}")
+        print(f"configure: adv_config  : 0x{self.read_u8(REG_ADV_CONFIG):08b}")
+        print(f"configure: busy_status : 0x{self.read_u8(REG_BUSY_STATUS):08b}")
+
+    def wait_until_ready(self, timeout: float = 1.0) -> bool:
+        t0 = time.time()
+        while self.read_u8(REG_BUSY_STATUS) & 0x03:
+            if (time.time() - t0) > timeout:
+                return False
+            time.sleep(0.01)
+        return True
 
     def trigger_one_shot(self) -> None:
         """
         When in shutdown (or deep shutdown), writing any value to ONE_SHOT triggers a single conversion.
         """
-        self.deep_shutdown(False)  # exit deep shutdown if set
-        self.write_u8(REG_CONFIG, 0x01)  # ensure START=1
+        self.read_u8(REG_INT_STATUS)  # clear any pending interrupt
         self.write_u8(REG_ONE_SHOT, 0x01)
+        if not self.wait_until_ready(timeout=1.0):
+            raise TimeoutError("Timeout waiting for ADC128D818 to complete one-shot conversion")
 
     def deep_shutdown(self, enable: bool) -> None:
         # Enter deep shutdown after clearing START; exit by writing 0
@@ -127,11 +155,18 @@ class ADC128D818(I2CDevice):
         else:
             self.write_u8(REG_DEEP_SHUTDOWN, 0x00)
 
+    def set_limits_raw(self, index: int, low: int, high: int) -> None:
+        if not (0 <= index <= 7):
+            raise ValueError("channel index 0..7")
+        # Set low/high limit registers (16-bit values)
+        reg = REG_LIMITS_BASE + index * 2
+        self.write_u16_be(reg, high & 0xFFFF)
+        self.write_u16_be(reg + 1, low & 0xFFFF)
+
     def read_channel_raw(self, index: int) -> int:
         if not (0 <= index <= 7):
             raise ValueError("channel index 0..7")
-        # while self.read_u8(REG_INT_STATUS) & 0x1 == 0:
-        #     time.sleep(0.01)
+        self.read_u8(REG_INT_STATUS)
         return self.read_u16_be(REG_READING_BASE + index)
     
     def _convert_raw_to_volts(self, raw: int, index: int) -> float:
@@ -148,8 +183,8 @@ class ADC128D818(I2CDevice):
         
         if self.config.continuous is False:
             self.trigger_one_shot()
-            time.sleep(1)  # allow time for conversion;
 
+        self.wait_until_ready(timeout=1.0)
         raw = self.read_channel_raw(index)
         volts = self._convert_raw_to_volts(raw, index)
         print(f"Reading channel {index}: {volts:9.4f} (raw 0x{raw:04X})")
@@ -160,7 +195,8 @@ class ADC128D818(I2CDevice):
 
         if self.config.continuous is False:
             self.trigger_one_shot()
-            time.sleep(1)  # allow time for conversion;
+
+        self.wait_until_ready(timeout=1.0)
 
         for ch in range(8):
             if (active_mask >> ch) & 0x1:

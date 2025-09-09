@@ -12,6 +12,7 @@ def main():
     ap = argparse.ArgumentParser(description="Simple I2C sensor reader")
     ap.add_argument("--cont", type=bool, help="Continuous mode for ADC128D818")
     ap.add_argument("--mask", type=int, default=0, help="Disable mask for ADC128D818 (bit i disables channel i)")
+    ap.add_argument("--mode", type=int, default=0, help="Mode for ADC128D818 (0-3, see datasheet)")
     args = ap.parse_args()
 
     print("Args:", args)
@@ -23,19 +24,20 @@ def main():
 
     adc = ADC128D818(I2CConfig(1, ADC_ADDR))
     conf = ADC128D818Config( 
-                start = True,
-                continuous = False if args.cont is None else args.cont,
+                start = False if args.cont is None else True,
+                continuous = False if args.cont is None else True,
                 disable_mask = args.mask & 0x0F,
-                mode = 1,
-                extResistorMultipliers = [2.7, 2.7, 2.7, 5.0, 5.0, 5.0, 2.0, 2.0] )
+                mode = args.mode & 0x03,
+                extResistorMultipliers = [2.7, 2.7, 2.7, 5.0, 5.0, 5.0, 2.0, 100.0] )
     adc.configure(conf)
+    adc.deep_shutdown(True if args.cont is None else False)
     time.sleep(0.05)
     print("ADC128D818:", adc.read_channels())
-    conf.mode = 0
-    conf.extResistorMultipliers = [2.7, 2.7, 2.7, 5.0, 5.0, 5.0, 2.0, 1.0]
-    adc.configure(conf)
-    time.sleep(0.05)
-    print("ADC128D818: Temp mode:", adc.read_channel(7))
+    # conf.mode = 0
+    # conf.extResistorMultipliers = [2.7, 2.7, 2.7, 5.0, 5.0, 5.0, 2.0, 1.0]
+    # adc.configure(conf)
+    # time.sleep(0.05)
+    # print("ADC128D818: Temp mode:", adc.read_channel(7))
     adc.close()
 
 
