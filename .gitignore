@@ -1,5 +1,5 @@
 *.pyc
-__pycache__/
+**/__pycache__/
 *.pyo
 *.pyd
 *.env
@@ -24,3 +24,4 @@ htmlcov/
 *.swp
 *.swo
 
+# i2c_sensors/__pycache__/*

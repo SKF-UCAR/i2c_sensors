@@ -11,23 +11,28 @@ INA_ADDR = 0x40  # A0/A1 strapping selects one of 16 addresses per datasheet
 ADC_ADDR = 0x1D  # A0/A1 tri-level allow 9 addresses
 
 def main():
-    log = utils.init_logger("demo", level=logging.DEBUG)
+    
     ap = argparse.ArgumentParser(description="Simple I2C sensor reader")
-    ap.add_argument("--cont", type=bool, help="Continuous mode for ADC128D818")
     ap.add_argument("--mask", type=int, default=0, help="Disable mask for ADC128D818 (bit i disables channel i)")
     ap.add_argument("--mode", type=int, default=0, help="Mode for ADC128D818 (0-3, see datasheet)")
+    ap.add_argument("--cont", default=False, help="Continuous mode for ADC128D818", action="store_const", const=True)
+    ap.add_argument("--debug", default=False, help="Show debug messages", action="store_const", const=True)
     args = ap.parse_args()
-
+    
+    log = utils.init_logger("demo", level=logging.DEBUG if args.debug else logging.INFO)
     log.info(f"Args: {args}")
 
     print("INA260:")
     ina = INA260(I2CConfig(1, INA_ADDR))
+    int_congf = INA260Config.AVG_MODE.AVG_MODE_0004 | \
+                INA260Config.VCT_MODE.VCT_MODE_1100US | \
+                INA260Config.ITC_MODE.ICT_MODE_1100US | \
+                INA260Config.OPERATING_MODE.MODE_SHUNT_BUS_CONT
+    
+    log.info(f"INA260 config: 0x{int_congf:04X}")
     ina_config = INA260Config(
-        avg=0, 
-        vbus_ct=0, 
-        ishunt_ct=0, 
-        mode=0b111, 
-        log=log)
+                    int_congf, # default reset value
+                log=log)
     ina.configure(ina_config)
     print("INA260:", ina.to_dict())
     ina.close()

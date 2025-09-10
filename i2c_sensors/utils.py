@@ -1,3 +1,11 @@
+"""
+Utility functions for i2c_sensors package 
+    - logging, 
+    - config files, 
+    - I2C scan, 
+    - UDP send, 
+    - periodic scheduling
+"""
 import logging
 from typing import Optional, Union
 
@@ -97,7 +105,7 @@ def scan_i2c(busnum: int = 1, logger: Optional[Union[str, logging.Logger]] = Non
     Scan I2C bus for devices; return list of found addresses.
     """
     logger = _resolve_logger(logger)
-    found = []
+    found : list[int] = []
     try:
         bus = smbus2.SMBus(busnum)
     except FileNotFoundError as e:
