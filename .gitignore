@@ -24,4 +24,4 @@ htmlcov/
 *.swp
 *.swo
 
-# i2c_sensors/__pycache__/*
+i2c_sensors/__pycache__/*
