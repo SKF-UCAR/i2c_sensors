@@ -1,3 +1,6 @@
+"""
+Thin I²C device base class and helpers
+"""
 from __future__ import annotations
 from typing import Iterable, Dict, Any, Optional, List, Tuple
 import time

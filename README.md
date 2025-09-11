@@ -17,7 +17,7 @@ Includes drivers for **TI ADC128D818** (8-channel 12-bit ADC) and **TI INA260** 
 - **Export adapters**: write results to JSON or CSV
 - **CLI tool** (`i2c-sensors`) to poll devices and log results
 - **Extensible**: easy to add new I²C device classes or export formats
-- **Portable to C++**: register-oriented API with minimal Python-specific magic
+<!-- - **Portable to C++**: register-oriented API with minimal Python-specific magic -->
 
 ---
 
@@ -84,14 +84,16 @@ adc.close()
 ## File structure
 
 ```
-i2c_sensors/
-├─ base.py           # I2CDevice base class
-├─ export.py         # JSON/CSV exporters
-├─ ina260.py         # INA260 driver
-├─ adc128d818.py     # ADC128D818 driver
-├─ cli.py            # Command-line tool
-examples/
-└─ demo_read.py      # Simple usage demo
+/
+├─ i2c_sensors/
+| ├─ base.py         # I2CDevice base class
+| ├─ export.py       # JSON/CSV exporters
+| ├─ ina260.py       # INA260 driver
+| ├─ adc128d818.py   # ADC128D818 driver
+| └─ cli.py          # Command-line tool
+├─ demo_read.py      # Simple usage demo
+├─ power_monitor.py  # App uses both INA260 and ADC128D818
+└─ udp_mon.py        # Prints all the traffic for the UDP port
 ```
 
 ---
@@ -129,4 +131,4 @@ mypy i2c_sensors
 
 ## License
 
-MIT License © 2025 UCAR, Slava Fedorchuk
+MIT License © 2025 UCAR

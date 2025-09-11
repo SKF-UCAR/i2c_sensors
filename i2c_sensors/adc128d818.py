@@ -1,3 +1,6 @@
+"""
+TI ADC128D818 – 8ch, 12-bit ΔΣ ADC w/ temp sensor and internal 2.56V Vref.
+"""
 from __future__ import annotations
 from enum import IntEnum
 from typing import Dict, Any, List, Optional, Tuple
@@ -60,6 +63,14 @@ class ADC128D818Config:
                  mode: int = 0x00,
                  extResistorMultipliers: List[float] = [1.0] * 8,
                  log: Optional[logging.Logger] = None):
+        """
+        - start: set START bit
+        - continuous: if False, set low-power conversion (convert all enabled, then shutdown)
+        - disable_mask: bit i disables channel i when set. Must be done in shutdown.
+        - extResistorMultipliers: List of 8 floats, one per channel, to
+            scale readings if using external Vref divider. E.g. for a 10k/30k divider, multiplier is 4.0 (Vout=Vin*10k/40k).
+        - log: optional logger
+        """
         self.start = start
         self.continuous = continuous
         self.disable_mask = disable_mask
@@ -154,6 +165,7 @@ class ADC128D818(I2CDevice):
         self.config.log.debug(f"configure: busy_status : 0b{self.read_u8(ADC128D818_REG.REG_BUSY_STATUS):08b}")
 
     def wait_until_ready(self, timeout: float = 1.0) -> bool:
+        """Wait until BUSY_STATUS indicates ready, or timeout (seconds)"""
         t0 = time.time()
         while self.read_u8(ADC128D818_REG.REG_BUSY_STATUS) & 0x03:
             if (time.time() - t0) > timeout:
@@ -173,6 +185,9 @@ class ADC128D818(I2CDevice):
             raise TimeoutError(err_msg)
 
     def deep_shutdown(self, enable: bool) -> None:
+        """
+        When in deep shutdown, writing any value to ONE_SHOT triggers a single conversion.
+        """
         # Enter deep shutdown after clearing START; exit by writing 0
         if enable:
             self._start(False)
