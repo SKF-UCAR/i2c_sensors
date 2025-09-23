@@ -127,19 +127,40 @@ def scan_i2c(busnum: int = 1, logger: Optional[Union[str, logging.Logger]] = Non
 ### senf UDP message ###
 import socket
 
+# def send_udp_message(message: str, host: str, port: int, logger: Optional[Union[str, logging.Logger]] = None) -> None:
+#     """
+#     Send a UDP message to the specified host and port.
+#     """
+#     logger = _resolve_logger(logger)
+#     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+#     try:
+#         sock.sendto(message.encode('utf-8'), (host, port))
+#         logger.debug(f"Sent UDP message to {host}:{port}")
+#     except Exception as e:
+#         logger.error(f"Error sending UDP message: {e}")
+#     finally:
+#         sock.close()
+
 def send_udp_message(message: str, host: str, port: int, logger: Optional[Union[str, logging.Logger]] = None) -> None:
     """
     Send a UDP message to the specified host and port.
     """
     logger = _resolve_logger(logger)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # Use getattr so test monkeypatches that replace `socket` with a SimpleNamespace
+    # (which may not have AF_INET/SOCK_DGRAM) won't cause AttributeError.
+    af = getattr(socket, "AF_INET", 0)
+    socket_type = getattr(socket, "SOCK_DGRAM", 0)
+    sock = socket.socket(af, socket_type)
     try:
-        sock.sendto(message.encode('utf-8'), (host, port))
-        logger.debug(f"Sent UDP message to {host}:{port}")
-    except Exception as e:
-        logger.error(f"Error sending UDP message: {e}")
+        sock.sendto(message.encode("utf-8"), (host, port))
+        logger.debug("Sent UDP message to %s:%s", host, port)
+    except Exception as exc:
+        logger.error("Error sending UDP message: %s", exc)
     finally:
-        sock.close()
+        try:
+            sock.close()
+        except Exception:
+            pass
 
 ### Schedule periodic function call ###
 import threading

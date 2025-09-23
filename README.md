@@ -14,7 +14,7 @@ Includes drivers for **TI ADC128D818** (8-channel 12-bit ADC) and **TI INA260** 
 - **Drivers included:**
   - `ADC128D818` — read 8 analog channels, one-shot, continuous, shutdown modes
   - `INA260` — read bus voltage, current, and power using integrated shunt
-- **Export adapters**: write results to JSON or CSV
+- **Export adapters**: write results to JSON, CSV or PROM
 - **CLI tool** (`i2c-sensors`) to poll devices and log results
 - **Extensible**: easy to add new I²C device classes or export formats
 <!-- - **Portable to C++**: register-oriented API with minimal Python-specific magic -->
@@ -41,7 +41,7 @@ pip install -e .
 
 ## Usage
 
-### Command line
+### Command line tool
 
 Example: read both INA260 (`0x40`) and ADC128D818 (`0x1D`) on bus 1, 5 samples, and save to CSV:
 
@@ -79,18 +79,49 @@ print("ADC128D818:", adc.read_channels())
 adc.close()
 ```
 
+### Other examples
+
+#### power_monitor.py
+
+```bash
+usage: power_monitor.py [-h] [--config CONFIG] [--debug]
+
+Power Monitor using INA260 and ADC128D818
+
+options:
+  -h, --help       show this help message and exit
+  --config CONFIG  Configuration file (JSON)
+  --debug          Show debug messages
+```
+
+#### demo_read.py
+
+```bash
+usage: demo_read.py [-h] [--mask MASK] [--mode MODE] [--cont] [--debug]
+
+Simple I2C sensor reader
+
+options:
+  -h, --help   show this help message and exit
+  --mask MASK  Disable mask for ADC128D818 (bit i disables channel i)
+  --mode MODE  Mode for ADC128D818 (0-3, see datasheet)
+  --cont       Continuous mode for ADC128D818
+  --debug      Show debug messages
+```
+
 ---
 
 ## File structure
 
-```
+```bash
 /
 ├─ i2c_sensors/
+| ├─ adc128d818.py   # ADC128D818 driver
 | ├─ base.py         # I2CDevice base class
+| ├─ cli.py          # Command-line tool
 | ├─ export.py       # JSON/CSV exporters
 | ├─ ina260.py       # INA260 driver
-| ├─ adc128d818.py   # ADC128D818 driver
-| └─ cli.py          # Command-line tool
+| └─ utils.py        # log, config, scheduler, i2c dev search
 ├─ demo_read.py      # Simple usage demo
 ├─ power_monitor.py  # App uses both INA260 and ADC128D818
 └─ udp_mon.py        # Prints all the traffic for the UDP port
@@ -128,6 +159,12 @@ mypy i2c_sensors
 ```
 
 ---
+
+## TODO:
+
+- [ ] finish README.md
+- [ ] add `requirements.txt`
+
 
 ## License
 

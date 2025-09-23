@@ -3,11 +3,13 @@ from i2c_sensors.export import write_prom
 from i2c_sensors.export import write_csv
 from i2c_sensors.export import write_json
 
-
-# test_export.py
+def test_import_export():
+    import importlib
+    importlib.import_module('i2c_sensors.export')
 
 def test_write_prom_empty_list(tmp_path):
     out = tmp_path / "prom.txt"
+    print(f"====>>> '{str(out)}'")
     write_prom(str(out), [])
     assert out.read_text() == ""
 

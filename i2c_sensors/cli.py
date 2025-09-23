@@ -18,33 +18,36 @@ def main():
     args = ap.parse_args()
 
     rows = []
-    t0 = time.time()
 
+    t0 = time.time()
     if args.ina260 is not None:
-        dev = INA260(I2CConfig(args.bus, args.ina260))
-        dev.configure(avg=0, vbus_ct=0, ishunt_ct=0, mode=0b111)
-        for _ in range(args.count):
-            d = dev.to_dict()
-            d["t"] = time.time() - t0
-            rows.append({f"ina260_{k}": v for k, v in d.items() if k != "raw"})
-            time.sleep(args.delay)
-        dev.close()
+        dev_ina260 = INA260(I2CConfig(args.bus, args.ina260))
+        dev_ina260.configure(avg=0, vbus_ct=0, ishunt_ct=0, mode=0b111)
 
     if args.adc128 is not None:
-        dev = ADC128D818(I2CConfig(args.bus, args.adc128))
+        dev_adc128 = ADC128D818(I2CConfig(args.bus, args.adc128))
         conf = ADC128D818Config( 
             start = True,
             continuous = True,
             disable_mask = 0x00,
             extResistorMultipliers = [1.0] * 8 )
-        dev.configure(conf)
-        
-        for _ in range(args.count):
-            d = dev.read_channels()
-            d["t"] = time.time() - t0
-            rows.append({f"adc_{k}": v for k, v in d.items()})
-            time.sleep(args.delay)
-        dev.close()
+        dev_adc128.configure(conf)
+
+    for _ in range(args.count):
+        d = {}
+        d["t"] = time.time() - t0
+        if args.ina260 is not None:
+            d += dev_ina260.to_dict()
+        if args.adc128 is not None:
+            d += dev_adc128.read_channels()
+        rows.append({f"ina260_{k}": v for k, v in d.items() if k != "raw"})
+        time.sleep(args.delay)
+
+    if args.ina260 is not None:
+        dev_ina260.close()
+
+    if args.adc128 is not None:
+        dev_adc128.close()
 
     if args.out:
         write_auto(args.out, rows if len(rows) > 1 else (rows[0] if rows else {}))

@@ -1,0 +1,79 @@
+---
+- name: Install i2c_sensors and power_monitor on Raspberry Pi
+  hosts: { rpi_hosts }
+  become: true
+  vars:
+    i2c_repo: "{git_repo_url_for_i2c_sensors}" | default("https://github.com/SKF-UCAR/i2c_sensors.git")
+    install_dir: "{install_dir}" | default("/opt")
+    power_entry: "power_monitor.py"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install system packages
+      apt:
+        name:
+          - git
+          - python3
+          - python3-venv
+          - python3-pip
+          - i2c-tools
+        state: present
+        update_cache: yes
+
+    - name: Clone i2c_sensors repo
+      git:
+        repo: "{{ i2c_repo }}"
+        dest: "{{ install_dir }}/i2c_sensors"
+        version: HEAD
+        force: yes
+
+    - name: Create .venv for i2c_sensors
+      python_venv:
+        path: "{{ install_dir }}/i2c_sensors/.venv"
+        python: python3
+
+    - name: Install i2c_sensors requirements
+      pip:
+        requirements: "{{ install_dir }}/i2c_sensors/requirements.txt"
+        virtualenv: "{{ install_dir }}/i2c_sensors/.venv"
+
+    - name: Enable I2C in config.txt
+      lineinfile:
+        path: /boot/config.txt
+        regexp: "^dtparam=i2c_arm="
+        line: "dtparam=i2c_arm=on"
+        create: yes
+
+    - name: Ensure i2c-dev module is loaded
+      modprobe:
+        name: i2c-dev
+        state: present
+
+    - name: Create systemd service for power_monitor
+      copy:
+        dest: /etc/systemd/system/power_monitor.service
+        content: |
+          [Unit]
+          Description=power_monitor service
+          After=network.target
+
+          [Service]
+          ExecStart={{ install_dir }}/i2c_sensors/.venv/bin/python {{ install_dir }}/i2c_sensors/{{ power_entry }}
+          WorkingDirectory={{ install_dir }}/i2c_sensors
+          Restart=always
+          User=root
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: "0644"
+
+    - name: Enable and start services
+      systemd:
+        name: power_monitor
+        enabled: yes
+        state: started
+        daemon_reload: yes
