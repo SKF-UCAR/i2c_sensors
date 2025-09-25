@@ -223,7 +223,14 @@ def main():
     try:
         while True:
             data = pm.read_all()
-            udp_msg = json.dumps(data)
+            # udp_msg = json.dumps(data)
+            udp_msg =f"{int(time.time())}"
+            for k, v in (data.get('adc128d818', {}) or {}).items():
+                if not k.startswith("raw"):
+                    udp_msg += f", {v:.4f}"
+            for k, v in (data.get('ina260', {}) or {}).items():
+                if not k.startswith("raw"):
+                    udp_msg += f", {v:.4f}"
             log.debug("Read data: %s", udp_msg)
             utils.send_udp_message(udp_msg, config.UDP_Addr, config.UDP_Port, logger=log)   
             # log.debug(json.dumps(data, indent=2))

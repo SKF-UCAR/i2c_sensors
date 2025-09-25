@@ -31,7 +31,7 @@ def main():
     
     log.info(f"INA260 config: 0x{int_conf:04X}")
     ina_config = INA260Config(
-                    int_conf, # default reset value
+                int_conf, # default reset value
                 log=log)
     ina.configure(ina_config)
     print("INA260:", ina.to_dict())
