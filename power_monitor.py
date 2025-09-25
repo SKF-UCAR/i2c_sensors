@@ -193,7 +193,7 @@ class PowerMonitor:
         if self.ina is not None:
             d["ina260"] = self.ina.to_dict()
         if self.adc is not None:
-            d["adc128d818"] = self.adc.read_channels()
+            d["adc128d818"] = self.adc.read_all()
         return d
 
     def close(self) -> None:

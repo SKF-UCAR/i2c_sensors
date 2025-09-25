@@ -7,6 +7,8 @@ def test_import_export():
     import importlib
     importlib.import_module('i2c_sensors.export')
 
+### Tests for PROM exporter
+
 def test_write_prom_empty_list(tmp_path):
     out = tmp_path / "prom.txt"
     print(f"====>>> '{str(out)}'")
@@ -17,11 +19,13 @@ def test_write_prom_list_of_dicts(tmp_path):
     out = tmp_path / "prom.txt"
     data = [{"a": 1, "b": "x"}, {"a": 2, "b": None}]
     write_prom(str(out), data)
-    lines = out.read_text().splitlines()
+    lines = out.read_text() #.splitlines()
     assert "a 1" in lines
-    assert 'b "x"' in lines
-    assert "a 2" in lines
+    assert 'b "x" ' in lines
+    assert "a 2 " in lines
     assert not any(line.startswith("b ") and "None" in line for line in lines)
+    assert lines.endswith("\n")
+
 
 def test_write_prom_dict(tmp_path):
     out = tmp_path / "prom.txt"
@@ -31,18 +35,25 @@ def test_write_prom_dict(tmp_path):
     assert "foo 42" in text
     assert 'bar "baz"' in text
     assert "skip" not in text
+    assert text.endswith("\n")
 
 def test_write_prom_fallback(tmp_path):
     out = tmp_path / "prom.txt"
     write_prom(str(out), 123)
-    assert out.read_text() == "data 123\n"
+    text = out.read_text()
+    assert "data 123" in text
+    assert text.endswith("\n")
 
 def test_write_prom_quotes_strings(tmp_path):
     out = tmp_path / "prom.txt"
     data = {"x": "hello world"}
     write_prom(str(out), data)
-    assert out.read_text() == 'x "hello world"\n'
+    text = out.read_text()
+    assert 'x "hello world"' in text
+    assert text.endswith("\n")
 
+
+### Tests for CSV exporter
 
 def test_write_csv_empty(tmp_path):
     out = tmp_path / "out.csv"

@@ -156,5 +156,7 @@ class INA260(I2CDevice):
             "bus_voltage_v": r.bus_voltage_v,
             "current_a": r.current_a,
             "power_w": r.power_w,
-            "raw": {"bus": r.raw_bus, "current": r.raw_current, "power": r.raw_power},
+            "raw_bus": r.raw_bus,
+            "raw_current": r.raw_current,
+            "raw_power": r.raw_power,
         }

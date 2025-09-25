@@ -75,7 +75,7 @@ ina.close()
 
 adc = ADC128D818(I2CConfig(1, 0x1D))
 adc.configure(start=True, continuous=True)
-print("ADC128D818:", adc.read_channels())
+print("ADC128D818:", adc.read_all())
 adc.close()
 ```
 

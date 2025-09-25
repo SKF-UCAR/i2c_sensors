@@ -24,14 +24,14 @@ def main():
 
     print("INA260:")
     ina = INA260(I2CConfig(1, INA_ADDR))
-    int_congf = INA260Config.AVG_MODE.AVG_MODE_0004 | \
+    int_conf = INA260Config.AVG_MODE.AVG_MODE_0004 | \
                 INA260Config.VCT_MODE.VCT_MODE_1100US | \
                 INA260Config.ITC_MODE.ICT_MODE_1100US | \
                 INA260Config.OPERATING_MODE.MODE_SHUNT_BUS_CONT
     
-    log.info(f"INA260 config: 0x{int_congf:04X}")
+    log.info(f"INA260 config: 0x{int_conf:04X}")
     ina_config = INA260Config(
-                    int_congf, # default reset value
+                    int_conf, # default reset value
                 log=log)
     ina.configure(ina_config)
     print("INA260:", ina.to_dict())
@@ -49,7 +49,7 @@ def main():
     adc.configure(conf)
     adc.deep_shutdown(True if args.cont is None else False)
     time.sleep(0.05)
-    print("ADC128D818:", adc.read_channels())
+    print("ADC128D818:", adc.read_all())
     # conf.mode = 0
     # conf.extResistorMultipliers = [2.7, 2.7, 2.7, 5.0, 5.0, 5.0, 2.0, 1.0]
     # adc.configure(conf)

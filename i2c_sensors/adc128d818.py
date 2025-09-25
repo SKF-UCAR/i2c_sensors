@@ -236,8 +236,8 @@ class ADC128D818(I2CDevice):
         self.config.log.debug(f"Reading channel {index}: {volts:9.4f} (raw 0x{raw:04X})")
         return volts, raw
 
-    def read_channels(self, active_mask: int = 0xFF) -> Dict[str, Any]:
-        """Read all enabled channels; return dict of { "ch_0": {"raw":.., "val":..}, ... }"""
+    def read_all(self, active_mask: int = 0xFF) -> Dict[str, Any]:
+        """Read all enabled channels; return dict of { "ch0": val, "raw_ch_": raw, .., ... }"""
         readings: Dict[str, Any] = {}
 
         if self.config.continuous is False:
@@ -249,6 +249,7 @@ class ADC128D818(I2CDevice):
             if (active_mask >> ch) & 0x1:
                 raw = self.read_channel_raw(ch)
                 volts = self._convert_raw_to_volts(raw, ch)
-                readings[f"ch_{ch}"] = {"raw":raw, "val": volts}
+                readings[f"ch{ch}"] = volts
+                readings[f"raw_ch{ch}"] = raw
                 self.config.log.debug(f"Reading channel {ch}: {volts:9.4f} (raw 0x{raw:04X})")
         return readings
