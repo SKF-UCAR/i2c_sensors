@@ -100,3 +100,36 @@ def test_write_csv_header_sorted(tmp_path):
     write_csv(str(out), rows)
     header = out.read_text().splitlines()[0]
     assert header == ",".join(sorted(["z", "a", "m"]))
+
+### Tests for JSON exporter
+def test_write_json_dict(tmp_path):
+    out = tmp_path / "out.json"
+    data = {"foo": 1, "bar": [1, 2, 3]}
+    write_json(str(out), data)
+    text = out.read_text()
+    assert '"foo": 1' in text
+    assert '"bar": [\n    1,' in text or '"bar": [\n  1,' in text  # pretty-printed
+
+def test_write_json_list(tmp_path):
+    out = tmp_path / "out.json"
+    data = [{"a": 1}, {"b": 2}]
+    write_json(str(out), data)
+    text = out.read_text()
+    assert text.startswith("[\n") or text.startswith("[  \n")
+    assert '"a": 1' in text
+    assert '"b": 2' in text
+
+def test_write_json_primitive(tmp_path):
+    out = tmp_path / "out.json"
+    data = 12345
+    write_json(str(out), data)
+    text = out.read_text()
+    assert text.strip() == "12345"
+
+def test_write_json_string(tmp_path):
+    out = tmp_path / "out.json"
+    data = "hello"
+    write_json(str(out), data)
+    text = out.read_text()
+    assert text.strip() == '"hello"'
+
