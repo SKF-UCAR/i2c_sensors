@@ -1,0 +1,8 @@
+# -e git+ssh://git@github.com/SKF-UCAR/i2c_sensors.git@8416b3aa49b938e059d8fdf6214cd24f6d5d606d#egg=i2c_sensors
+importlib==1.0.4
+iniconfig==2.1.0
+packaging==25.0
+pluggy==1.6.0
+Pygments==2.19.2
+pytest==8.4.2
+smbus2==0.5.0
