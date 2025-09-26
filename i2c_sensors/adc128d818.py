@@ -48,7 +48,7 @@ class ADC128D818Config:
     - extResistorMultipliers: List of 8 floats, one per channel, to scale readings if using
         external Vref divider. E.g. for a 10k/30k divider, multiplier is 4.0 (Vout=Vin*10k/40k).
     """
-    _CHAN_ERROR_MSG = "Channel index must be within [0..7]"
+    _CHAN_ERROR_MSG:str = "Channel index must be within [0..7]"
     start: bool = True
     continuous: bool = True
     disable_mask: int = 0x00

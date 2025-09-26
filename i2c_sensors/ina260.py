@@ -34,6 +34,50 @@ class INA260Reading:
     raw_current: int
     raw_power: int
 
+# Define the mode enums at module level to avoid depending on the enclosing class
+# during class creation (some static analyzers or runtimes can report a self-dependency).
+class INA260_AVG_MODE(IntFlag):
+    AVG_MODE_0001       = 0x0000
+    AVG_MODE_0004       = 0x0200
+    AVG_MODE_0016       = 0x0400
+    AVG_MODE_0064       = 0x0600
+    AVG_MODE_0128       = 0x0800
+    AVG_MODE_0256       = 0x0A00
+    AVG_MODE_0512       = 0x0C00
+    AVG_MODE_1024       = 0x0E00
+
+# Bus Voltage conversion time settings (in microseconds)
+class INA260_VCT_MODE(IntFlag):
+    VCT_MODE_140US      = 0x0000
+    VCT_MODE_204US      = 0x0040
+    VCT_MODE_332US      = 0x0080
+    VCT_MODE_588US      = 0x00C0
+    VCT_MODE_1100US     = 0x0100
+    VCT_MODE_2116US     = 0x0140
+    VCT_MODE_4156US     = 0x0180
+    VCT_MODE_8244US     = 0x01C0
+
+# Shunt current conversion time settings (in microseconds)
+class INA260_ITC_MODE(IntFlag):
+    ICT_MODE_140US      = 0x0000
+    ICT_MODE_204US      = 0x0008
+    ICT_MODE_332US      = 0x0010
+    ICT_MODE_588US      = 0x0018
+    ICT_MODE_1100US     = 0x0020
+    ICT_MODE_2116US     = 0x0028
+    ICT_MODE_4156US     = 0x0030
+    ICT_MODE_8244US     = 0x0038
+
+# Operating modes
+class INA260_OPERATING_MODE(IntFlag):
+    MODE_POWERDOWN      = 0x0000
+    MODE_SHUNT_TRIG     = 0x0001
+    MODE_BUS_TRIG       = 0x0002
+    MODE_SHUNT_BUS_TRIG = 0x0003
+    MODE_SHUNT_CONT     = 0x0005
+    MODE_BUS_CONT       = 0x0006
+    MODE_SHUNT_BUS_CONT = 0x0007
+
 class INA260Config:
     """
     Configuration object for INA260
@@ -46,50 +90,13 @@ class INA260Config:
         mode: 0..7, see datasheet MODE bits [2:0]
     - log: logger
     """
-    ### Predefined modes for convenience
+    ### Predefined modes for convenience (exposed as class attributes)
 
-    # AVG settings (samples averaged)
-    class AVG_MODE(IntFlag):
-        AVG_MODE_0001       = 0x0000
-        AVG_MODE_0004       = 0x0200
-        AVG_MODE_0016       = 0x0400
-        AVG_MODE_0064       = 0x0600
-        AVG_MODE_0128       = 0x0800
-        AVG_MODE_0256       = 0x0A00
-        AVG_MODE_0512       = 0x0C00
-        AVG_MODE_1024       = 0x0E00
-
-    # Bus Voltage conversion time settings (in microseconds)
-    class VCT_MODE(IntFlag):
-        VCT_MODE_140US      = 0x0000
-        VCT_MODE_204US      = 0x0040
-        VCT_MODE_332US      = 0x0080
-        VCT_MODE_588US      = 0x00C0
-        VCT_MODE_1100US     = 0x0100
-        VCT_MODE_2116US     = 0x0140
-        VCT_MODE_4156US     = 0x0180
-        VCT_MODE_8244US     = 0x01C0
-
-    # Shunt current conversion time settings (in microseconds)
-    class ITC_MODE(IntFlag):
-        ICT_MODE_140US      = 0x0000
-        ICT_MODE_204US      = 0x0008
-        ICT_MODE_332US      = 0x0010
-        ICT_MODE_588US      = 0x0018
-        ICT_MODE_1100US     = 0x0020
-        ICT_MODE_2116US     = 0x0028
-        ICT_MODE_4156US     = 0x0030
-        ICT_MODE_8244US     = 0x0038
-
-    # Operating modes
-    class OPERATING_MODE(IntFlag):
-        MODE_POWERDOWN      = 0x0000
-        MODE_SHUNT_TRIG     = 0x0001
-        MODE_BUS_TRIG       = 0x0002
-        MODE_SHUNT_BUS_TRIG = 0x0003
-        MODE_SHUNT_CONT     = 0x0005
-        MODE_BUS_CONT       = 0x0006
-        MODE_SHUNT_BUS_CONT = 0x0007
+    # Expose the module-level enums under the INA260Config namespace for backward compatibility
+    AVG_MODE = INA260_AVG_MODE
+    VCT_MODE = INA260_VCT_MODE
+    ITC_MODE = INA260_ITC_MODE
+    OPERATING_MODE = INA260_OPERATING_MODE
 
     config_reg : int = DEFAULT_CONFIG_REG
     log : logging.Logger = utils.get_logger("INA260")
@@ -149,6 +156,7 @@ class INA260(I2CDevice):
             raw_current   = raw_i,
             raw_power     = raw_p,
         )
+
 
     def to_dict(self) -> Dict[str, Any]:
         r = self.read_all()
