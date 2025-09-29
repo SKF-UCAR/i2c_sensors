@@ -3,6 +3,7 @@ import argparse, time, json, os
 
 from typing import Optional
 import i2c_sensors.utils as utils 
+import i2c_sensors.export as export
 from i2c_sensors.base import I2CConfig
 from i2c_sensors.adc128d818 import ADC128D818, ADC128D818Config
 from i2c_sensors.ina260 import INA260, INA260Config
@@ -190,6 +191,7 @@ class PowerMonitor:
 
     def read_all(self) -> dict:
         d = {}
+        d["_timestamp_"] = int(time.time())
         if self.ina is not None:
             d["ina260"] = self.ina.to_dict()
         if self.adc is not None:
@@ -207,6 +209,7 @@ def main():
     ap = argparse.ArgumentParser(description="Power Monitor using INA260 and ADC128D818")
     ap.add_argument("--config", type=str, default="", help="Configuration file (JSON)")
     ap.add_argument("--debug", default=False, help="Show debug messages", action="store_const", const=True)
+    ap.add_argument("--out", type=str, help="Output file for prometheus (.prom)")
     args = ap.parse_args()
 
     log = utils.init_logger("PMon", level=logging.DEBUG if args.debug else logging.INFO)
@@ -224,7 +227,7 @@ def main():
         while True:
             data = pm.read_all()
             # udp_msg = json.dumps(data)
-            udp_msg =f"{int(time.time())}"
+            udp_msg =f"{data.get('_timestamp_')}"
             for k, v in (data.get('adc128d818', {}) or {}).items():
                 if not k.startswith("raw"):
                     udp_msg += f", {v:.4f}"
@@ -234,6 +237,12 @@ def main():
             log.debug("Read data: %s", udp_msg)
             utils.send_udp_message(udp_msg, config.UDP_Addr, config.UDP_Port, logger=log)   
             # log.debug(json.dumps(data, indent=2))
+            if args.out:
+                d = {}
+                d["_timestamp_"]=data.get("_timestamp_")
+                d.update({f"{k}": v for k, v in (data.get('adc128d818', {}) or {}).items() if not k.startswith("raw")})
+                d.update({f"{k}": v for k, v in (data.get('ina260', {}) or {}).items() if not k.startswith("raw")})
+                export.write_prom(args.out, d)
             time.sleep(config.Read_Interval)
     except KeyboardInterrupt:
         print("Interrupted, exiting...")
