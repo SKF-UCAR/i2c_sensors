@@ -19,7 +19,7 @@ def write_csv(path: str, rows: Iterable[Dict[str, Any]]) -> None:
         for r in rows:
             w.writerow(r)
 
-def write_prom(path: str, data: Any) -> None:
+def write_prom(path: str, data: Any, use_timestamp:bool = False) -> None:
     """ Write data to prometheus text file format. """
     if not data:
         Path(path).write_text("")  # nothing to do
@@ -31,16 +31,20 @@ def write_prom(path: str, data: Any) -> None:
     def process_row(r: Dict[str, Any]) -> None:
         headers: List[str] = sorted({k for k in r.keys()})
         ts_h = None
-        for tsh in time_stamp_headers:
-            if tsh in headers:
-                headers.remove(tsh)
-                ts_h = tsh
-                break
-
+        if not use_timestamp:
+            ts_h = None
+        else:
+            # find first matching timestamp header
+            for tsh in time_stamp_headers:
+                if tsh in headers:
+                    headers.remove(tsh)
+                    ts_h = tsh
+                    break
+        ts = None
         if ts_h is not None:
             ts = int(r.get(ts_h))  # use timestamp from the current row
-        else:
-            ts =  int(time.time())
+        elif use_timestamp:
+            ts =  time.time()  # use current time
 
         for k in headers:
                 v = r.get(k)
@@ -48,7 +52,7 @@ def write_prom(path: str, data: Any) -> None:
                     continue
                 if isinstance(v, str):
                     v = f'"{v}"'  # quote strings
-                lines.append(f"{k} {v} {ts}")
+                lines.append(f"{k} {v} {ts if ts is not None else ''}".strip())
 
 
     if isinstance(data, list) and all(isinstance(r, dict) for r in data):

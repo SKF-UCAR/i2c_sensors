@@ -232,6 +232,45 @@ options:
 
 ---
 
+
+## Using metrics via Prometheus
+
+### 1. Exporters Available as Debian Packages
+
+#### Node Exporter
+
+```
+sudo apt update
+sudo apt install prometheus-node-exporter
+```
+
+- Runs automatically as a systemd service (prometheus-node-exporter.service)
+
+- Default scrape URL: http://localhost:9100/metrics
+
+- __Note__: Debian package does not enable the textfile collector by default.
+
+Enable it by editing /etc/default/prometheus-node-exporter:
+
+```bash
+ARGS="--collector.textfile.directory=/var/lib/node_exporter"
+```
+
+Then:
+```bash
+sudo mkdir -p /var/lib/node_exporter
+sudo systemctl restart prometheus-node-exporter
+```
+
+To check if text file collector is working you can open `http://<your-node>:9100/metrics` and if you can - check node's prometheus-node-exporter status:
+
+```bash
+systemctl status prometheus-node-exporter.service
+```
+
+__Note__: you might need to change permissions to the `/var/lib/node_exporter` folder. 
+
+
 ## TODO
 
 - [x] finish README.md
