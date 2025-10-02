@@ -21,8 +21,19 @@ def test_write_prom_list_of_dicts(tmp_path):
     write_prom(str(out), data)
     lines = out.read_text() #.splitlines()
     assert "a 1" in lines
-    assert 'b "x" ' in lines
-    assert "a 2 " in lines
+    assert 'b "x"' in lines
+    assert "a 2" in lines
+    assert not any(line.startswith("b ") and "None" in line for line in lines)
+    assert lines.endswith("\n")
+
+def test_write_prom_list_of_objs(tmp_path):
+    out = tmp_path / "prom.txt"
+    data = [ {"ab1":{"a": 1, "b": "x"}}, {"ab2":{"a": 2, "b": None}}]
+    write_prom(str(out), data)
+    lines = out.read_text() #.splitlines()
+    assert "a=\"1\"" in lines
+    assert 'b=\"x\"' in lines
+    assert "a=\"2\"" in lines
     assert not any(line.startswith("b ") and "None" in line for line in lines)
     assert lines.endswith("\n")
 

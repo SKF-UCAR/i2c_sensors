@@ -1,5 +1,6 @@
 from __future__ import annotations
-import csv, json
+import csv, json, yaml
+
 from pathlib import Path
 import time
 from typing import Dict, Any, Iterable, List
@@ -25,8 +26,20 @@ def write_prom(path: str, data: Any, use_timestamp:bool = False) -> None:
         Path(path).write_text("")  # nothing to do
         return
 
-    time_stamp_headers = ["_timestamp_", "timestamp", "time"]
+    time_stamp_headers = [] #["_timestamp_", "timestamp", "time"]
     lines: List[str] = []
+
+    def dict_to_prom_object_str(d: Dict[str, Any]) -> str:
+        items = []
+        for k in sorted(d.keys()):
+            v = d[k]
+            if v is None:
+                continue
+            if isinstance(v, (list, dict)):
+                continue;
+            
+            items.append(f'{k}="{v}"')
+        return "{" + ",".join(items) + "}" if items else ""
 
     def process_row(r: Dict[str, Any]) -> None:
         headers: List[str] = sorted({k for k in r.keys()})
@@ -44,7 +57,8 @@ def write_prom(path: str, data: Any, use_timestamp:bool = False) -> None:
         if ts_h is not None:
             ts = int(r.get(ts_h))  # use timestamp from the current row
         elif use_timestamp:
-            ts =  time.time()  # use current time
+            ts =  int(time.time())  # use current time
+        ts = ts * 1000 if ts is not None else None # prometheus wants ms
 
         for k in headers:
                 v = r.get(k)
@@ -52,7 +66,15 @@ def write_prom(path: str, data: Any, use_timestamp:bool = False) -> None:
                     continue
                 if isinstance(v, str):
                     v = f'"{v}"'  # quote strings
-                lines.append(f"{k} {v} {ts if ts is not None else ''}".strip())
+                if isinstance(v, bool): 
+                    v = "1" if v else "0"  # convert bool to int
+                if isinstance(v, (dict)):
+                    stringified = dict_to_prom_object_str(v)
+
+                    # stringified = yaml.safe_dump(v, default_style='\"', default_flow_style=True, sort_keys=True).strip().replace(": ", "=")
+                    lines.append(f"{k}{stringified} {ts if ts is not None else ''}".strip())
+                else:
+                    lines.append(f"{k} {v} {ts if ts is not None else ''}".strip())
 
 
     if isinstance(data, list) and all(isinstance(r, dict) for r in data):
