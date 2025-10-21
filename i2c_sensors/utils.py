@@ -1,13 +1,16 @@
 """
-Utility functions for i2c_sensors package 
-    - logging, 
-    - config files, 
-    - I2C scan, 
-    - UDP send, 
+Utility functions for i2c_sensors package
+    - logging,
+    - config files,
+    - I2C scan,
+    - UDP send,
     - periodic scheduling
 """
+
 import logging
 from typing import Optional, Union
+
+from i2c_sensors.i2c_device import I2CDevice, I2CConfig
 
 ### Simple logging utility for i2c_sensors package ###
 
@@ -70,59 +73,77 @@ def _resolve_logger(logger: Optional[Union[str, logging.Logger]]) -> logging.Log
     return logging.getLogger(str(logger))
 
 
-def info(msg: str, *args, logger: Optional[Union[str, logging.Logger]] = None, **kwargs) -> None:
+def info(
+    msg: str, *args, logger: Optional[Union[str, logging.Logger]] = None, **kwargs
+) -> None:
     _resolve_logger(logger).info(msg, *args, **kwargs)
 
 
-def debug(msg: str, *args, logger: Optional[Union[str, logging.Logger]] = None, **kwargs) -> None:
+def debug(
+    msg: str, *args, logger: Optional[Union[str, logging.Logger]] = None, **kwargs
+) -> None:
     _resolve_logger(logger).debug(msg, *args, **kwargs)
 
 
-def error(msg: str, *args, logger: Optional[Union[str, logging.Logger]] = None, **kwargs) -> None:
+def error(
+    msg: str, *args, logger: Optional[Union[str, logging.Logger]] = None, **kwargs
+) -> None:
     _resolve_logger(logger).error(msg, *args, **kwargs)
 
 
-def warning(msg: str, *args, logger: Optional[Union[str, logging.Logger]] = None, **kwargs) -> None:
+def warning(
+    msg: str, *args, logger: Optional[Union[str, logging.Logger]] = None, **kwargs
+) -> None:
     _resolve_logger(logger).warning(msg, *args, **kwargs)
 
 
 ### Simple config file reader/writer ###
 import json
 
+
 def read_json(path: str) -> dict:
     with open(path, "r") as f:
-        return json.load(f)     
-    
+        return json.load(f)
+
+
 def write_json(path: str, obj: dict) -> None:
     with open(path, "w") as f:
-        json.dump(obj, f, indent=2, sort_keys=True) 
+        json.dump(obj, f, indent=2, sort_keys=True)
+
 
 ### Simple I2C address scanner ###
-import smbus2
 
-def scan_i2c(busnum: int = 1, logger: Optional[Union[str, logging.Logger]] = None) -> list[int]:
+
+def scan_i2c(
+    i2c_device: I2CDevice,
+    bus: int = 0,
+    logger: Optional[Union[str, logging.Logger]] = None,
+) -> list[int]:
     """
     Scan I2C bus for devices; return list of found addresses.
     """
     logger = _resolve_logger(logger)
-    found : list[int] = []
+    found: list[int] = []
     try:
-        bus = smbus2.SMBus(busnum)
-    except FileNotFoundError as e:
-        logger.error(f"Cannot open I2C bus {busnum}: {e}")
+        i2c_device.open()
+    except Exception as e:
+        logger.error(f"Cannot open I2C device: {e}")
         return found
-    logger.info(f"Scanning I2C bus {busnum}...")
+    logger.info(f"Scanning I2C device...")
     for addr in range(0x03, 0x78):
         try:
-            bus.write_quick(addr)
+            config = I2CConfig(bus=bus, address=addr)
+            i2c_device.reopen(config)
+            i2c_device.write_u8(addr, 0)
             found.append(addr)
             logger.info(f"  Found device at address 0x{addr:02X}")
-        except OSError:
+        except Exception:
             pass
-    bus.close()
+    i2c_device.close()
     if not found:
         logger.info("  No I2C devices found.")
     return found
+
 
 ### senf UDP message ###
 import socket
@@ -141,7 +162,13 @@ import socket
 #     finally:
 #         sock.close()
 
-def send_udp_message(message: str, host: str, port: int, logger: Optional[Union[str, logging.Logger]] = None) -> None:
+
+def send_udp_message(
+    message: str,
+    host: str,
+    port: int,
+    logger: Optional[Union[str, logging.Logger]] = None,
+) -> None:
     """
     Send a UDP message to the specified host and port.
     """
@@ -162,8 +189,10 @@ def send_udp_message(message: str, host: str, port: int, logger: Optional[Union[
         except Exception:
             pass
 
+
 ### Schedule periodic function call ###
 import threading
+
 
 def schedule_periodic(func, interval: float, *args, **kwargs) -> threading.Event:
     """
@@ -181,5 +210,6 @@ def schedule_periodic(func, interval: float, *args, **kwargs) -> threading.Event
     thread.daemon = True
     thread.start()
     return stop_event
+
 
 ### End of i2c_sensors/utils.py ###

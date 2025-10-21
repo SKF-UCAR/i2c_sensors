@@ -1,10 +1,9 @@
-import importlib
 import json
-import pytest
-from i2c_sensors.base import I2CConfig
+from i2c_sensors.i2c_device import I2CConfig
 from i2c_sensors.adc128d818 import ADC128D818Config
 from i2c_sensors.ina260 import INA260Config
 from power_monitor.power_monitor_config import PowerMonitorConfig
+
 
 def test_power_monitor_config_init_defaults():
     pmc = PowerMonitorConfig()
@@ -22,10 +21,13 @@ def test_power_monitor_config_init_defaults():
     assert pmc.ADC128D818_config.continuous is False
     assert len(pmc.ADC128D818_config.extResistorMultipliers) == 8
     assert pmc.INA260_config.log is pmc.log
-    assert pmc.INA260_config.config_reg == (INA260Config.AVG_MODE.AVG_MODE_0004 | 
-                                                 INA260Config.VCT_MODE.VCT_MODE_1100US | 
-                                                 INA260Config.ITC_MODE.ICT_MODE_1100US | 
-                                                 INA260Config.OPERATING_MODE.MODE_SHUNT_BUS_CONT)
+    assert pmc.INA260_config.config_reg == (
+        INA260Config.AVG_MODE.AVG_MODE_0004
+        | INA260Config.VCT_MODE.VCT_MODE_1100US
+        | INA260Config.ITC_MODE.ICT_MODE_1100US
+        | INA260Config.OPERATING_MODE.MODE_SHUNT_BUS_CONT
+    )
+
 
 def test_power_monitor_config_read_config(tmp_path):
     pmc = PowerMonitorConfig()
@@ -39,15 +41,13 @@ def test_power_monitor_config_read_config(tmp_path):
             "continuous": True,
             "disable_mask": 0xFF,
             "mode": 0x01,
-            "extResistorMultipliers": [2.0, 2.0, 2.0, 5.0, 5.0, 5.0, 2.0, 100.0]
-        },  
+            "extResistorMultipliers": [2.0, 2.0, 2.0, 5.0, 5.0, 5.0, 2.0, 100.0],
+        },
         "INA260_I2C": {"bus": 1, "address": 0x40},
-        "INA260_config": {
-            "config_reg": 0x1234
-        }
+        "INA260_config": {"config_reg": 0x1234},
     }
-    config_file = tmp_path / "pmon_config.json" 
-    config_file.write_text(json.dumps(config_data)) 
+    config_file = tmp_path / "pmon_config.json"
+    config_file.write_text(json.dumps(config_data))
     pmc.read_config(str(config_file))
     assert pmc.UDP_Addr == "localhost"
     assert pmc.UDP_Port == 8888
@@ -59,12 +59,17 @@ def test_power_monitor_config_read_config(tmp_path):
     assert pmc.ADC128D818_config.continuous is True
     assert pmc.ADC128D818_config.disable_mask == 0xFF
     assert pmc.ADC128D818_config.mode == 0x01
-    assert pmc.ADC128D818_config.extResistorMultipliers == [2.0, 2.0, 2.0, 5.0, 5.0, 5.0, 2.0, 100.0]
+    assert pmc.ADC128D818_config.extResistorMultipliers == [
+        2.0,
+        2.0,
+        2.0,
+        5.0,
+        5.0,
+        5.0,
+        2.0,
+        100.0,
+    ]
     assert pmc.INA260_I2C.bus == 1
     assert pmc.INA260_I2C.address == 0x40
     assert pmc.INA260_config is not None
     assert pmc.INA260_config.config_reg == 0x1234
-
-
-
-

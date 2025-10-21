@@ -4,9 +4,9 @@ import logging
 from typing import Optional
 
 import i2c_sensors.utils as utils
-from i2c_sensors.base import I2CConfig
+from i2c_sensors.i2c_device import I2CConfig
 from i2c_sensors.adc128d818 import ADC128D818Config
-from i2c_sensors.ina260 import  INA260Config
+from i2c_sensors.ina260 import INA260Config
 
 
 # Default addresses – adjust to your wiring
@@ -19,7 +19,8 @@ class PowerMonitorConfig:
     Configuration object for power monitor
     - log: logger
     """
-    log : logging.Logger
+
+    log: logging.Logger
 
     UDP_Addr: str = "localhost"
     UDP_Port: int = 9999
@@ -29,35 +30,35 @@ class PowerMonitorConfig:
     INA260_I2C: I2CConfig
     INA260_config: Optional[INA260Config] = None
 
-    def __init__(self,  
-                 log: Optional[logging.Logger] = None):
+    def __init__(self, log: Optional[logging.Logger] = None):
         self.log = log or utils.get_logger("PMon")
 
     def init_defaults(self) -> None:
         """
-        Initialize default config values to both devices 
+        Initialize default config values to both devices
         enabled with typical configs
         """
-        # 
+        #
         # ADC128D818
         self.ADC128D818_I2C = I2CConfig(1, ADC_ADDR)
-        self.ADC128D818_config = ADC128D818Config( 
-                start = False,
-                continuous = False,
-                disable_mask = 0x00,
-                mode = 0x00,
-                extResistorMultipliers = [2.7, 2.7, 2.7, 5.0, 5.0, 5.0, 2.0, 100.0],
-                log = self.log )
+        self.ADC128D818_config = ADC128D818Config(
+            start=False,
+            continuous=False,
+            disable_mask=0x00,
+            mode=0x00,
+            extResistorMultipliers=[2.7, 2.7, 2.7, 5.0, 5.0, 5.0, 2.0, 100.0],
+            log=self.log,
+        )
 
         # INA260
-        int_congf = INA260Config.AVG_MODE.AVG_MODE_0004 | \
-                    INA260Config.VCT_MODE.VCT_MODE_1100US | \
-                    INA260Config.ITC_MODE.ICT_MODE_1100US | \
-                    INA260Config.OPERATING_MODE.MODE_SHUNT_BUS_CONT
+        int_congf = (
+            INA260Config.AVG_MODE.AVG_MODE_0004
+            | INA260Config.VCT_MODE.VCT_MODE_1100US
+            | INA260Config.ITC_MODE.ICT_MODE_1100US
+            | INA260Config.OPERATING_MODE.MODE_SHUNT_BUS_CONT
+        )
         self.INA260_I2C = I2CConfig(1, INA_ADDR)
-        self.INA260_config = INA260Config(
-                int_congf,
-                log=self.log)
+        self.INA260_config = INA260Config(int_congf, log=self.log)
 
     def _normalize_filename(self, fn: str) -> str:
         if not fn:
@@ -96,7 +97,9 @@ class PowerMonitorConfig:
                     return cls(**obj)
                 except Exception:
                     # fall back to from_dict if available
-                    if hasattr(cls, "from_dict") and callable(getattr(cls, "from_dict")):
+                    if hasattr(cls, "from_dict") and callable(
+                        getattr(cls, "from_dict")
+                    ):
                         return cls.from_dict(obj)
                     # give up and return raw dict
                     return obj
@@ -112,10 +115,12 @@ class PowerMonitorConfig:
         self.INA260_I2C = _make(data.get("INA260_I2C"), I2CConfig)
         self.INA260_config = _make(data.get("INA260_config"), INA260Config)
 
-        self.log.info("Loaded PowerMonitor config: INA260=%s ADC128D818=%s",
-                  "present" if self.INA260_config else "absent",
-                  "present" if self.ADC128D818_config else "absent")
-    
+        self.log.info(
+            "Loaded PowerMonitor config: INA260=%s ADC128D818=%s",
+            "present" if self.INA260_config else "absent",
+            "present" if self.ADC128D818_config else "absent",
+        )
+
     def write_config(self, filename: str) -> None:
         """
         Write configuration to a file (JSON)
@@ -150,7 +155,11 @@ class PowerMonitorConfig:
                         pass
             # dataclass- or object-like fallback
             if hasattr(obj, "__dict__"):
-                return {k: _dump(v) for k, v in obj.__dict__.items() if not k.startswith("_")}
+                return {
+                    k: _dump(v)
+                    for k, v in obj.__dict__.items()
+                    if not k.startswith("_")
+                }
             # last resort: string representation
             return str(obj)
 
