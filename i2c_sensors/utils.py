@@ -10,7 +10,7 @@ Utility functions for i2c_sensors package
 import logging
 from typing import Optional, Union
 
-from i2c_sensors.i2c_device import I2CDevice, I2CConfig
+from i2c_sensors.i2c_adapter import I2CAdapter, I2CConfig
 
 ### Simple logging utility for i2c_sensors package ###
 
@@ -115,7 +115,7 @@ def write_json(path: str, obj: dict) -> None:
 
 
 def scan_i2c(
-    i2c_device: I2CDevice,
+    i2c_device: I2CAdapter,
     bus: int = 0,
     logger: Optional[Union[str, logging.Logger]] = None,
 ) -> list[int]:

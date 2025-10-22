@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 
 import i2c_sensors.utils as utils
-from i2c_sensors.i2c_device import I2CConfig
+from i2c_sensors.i2c_adapter import I2CConfig
 from i2c_sensors.adc128d818 import ADC128D818Config
 from i2c_sensors.ina260 import INA260Config
 
@@ -29,6 +29,7 @@ class PowerMonitorConfig:
     ADC128D818_config: Optional[ADC128D818Config] = None
     INA260_I2C: I2CConfig
     INA260_config: Optional[INA260Config] = None
+    FTDI_URL: str = "ftdi://ftdi:1/1"
 
     def __init__(self, log: Optional[logging.Logger] = None):
         self.log = log or utils.get_logger("PMon")
@@ -59,6 +60,7 @@ class PowerMonitorConfig:
         )
         self.INA260_I2C = I2CConfig(1, INA_ADDR)
         self.INA260_config = INA260Config(int_congf, log=self.log)
+        self.FTDI_URL="ftdi://ftdi:1/1"
 
     def _normalize_filename(self, fn: str) -> str:
         if not fn:
@@ -113,7 +115,8 @@ class PowerMonitorConfig:
         self.ADC128D818_I2C = _make(data.get("ADC128D818_I2C"), I2CConfig)
         self.ADC128D818_config = _make(data.get("ADC128D818_config"), ADC128D818Config)
         self.INA260_I2C = _make(data.get("INA260_I2C"), I2CConfig)
-        self.INA260_config = _make(data.get("INA260_config"), INA260Config)
+        self.INA260_config = _make( data.get("INA260_config"), INA260Config)
+        self.FTDI_URL = data.get("FTDI_URL", self.FTDI_URL)
 
         self.log.info(
             "Loaded PowerMonitor config: INA260=%s ADC128D818=%s",

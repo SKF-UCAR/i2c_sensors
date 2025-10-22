@@ -2,7 +2,9 @@ import logging
 import argparse, time
 import i2c_sensors.utils as utils
 
-from i2c_sensors.i2c_device import I2CConfig
+from i2c_sensors.i2c_adapter import I2CConfig, I2CAdapter
+from i2c_sensors.i2c_sensors.i2c_ftdi_adapter import I2CFtdiAdapter
+from i2c_sensors.i2c_smbus_adapter import I2CSMBusAdapter
 from i2c_sensors.ina260 import INA260, INA260Config
 from i2c_sensors.adc128d818 import ADC128D818, ADC128D818Config
 
@@ -43,7 +45,8 @@ def main():
     log.info(f"Args: {args}")
 
     print("INA260:")
-    ina = INA260(I2CConfig(1, INA_ADDR))
+    ina_adapter = I2CSMBusAdapter( I2CConfig(1, INA_ADDR))
+    ina = INA260(ina_adapter)
     int_conf = (
         INA260Config.AVG_MODE.AVG_MODE_0004
         | INA260Config.VCT_MODE.VCT_MODE_1100US
@@ -58,7 +61,7 @@ def main():
     ina.close()
 
     print("ADC128D818:")
-    adc = ADC128D818(I2CConfig(1, ADC_ADDR))
+    adc_adapter = I2CSMBusAdapter( I2CConfig(1, ADC_ADDR))
     conf = ADC128D818Config(
         start=False if args.cont is None else True,
         continuous=False if args.cont is None else True,
@@ -67,6 +70,7 @@ def main():
         extResistorMultipliers=[2.7, 2.7, 2.7, 5.0, 5.0, 5.0, 2.0, 100.0],
         log=log,
     )
+    adc = ADC128D818(adc_adapter)
     adc.configure(conf)
     adc.deep_shutdown(True if args.cont is None else False)
     time.sleep(0.05)

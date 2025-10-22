@@ -1,5 +1,5 @@
 from typing import Iterable, Dict, Any, Optional, List, Tuple
-from .i2c_device import I2CConfig, I2CDevice
+from .i2c_adapter import I2CConfig, I2CAdapter
 
 try:
     # Linux I²C userspace helper
@@ -8,15 +8,15 @@ except ImportError:  # fall back to smbus if needed
     from smbus import SMBus  # type: ignore
 
 
-class I2CSMBus(I2CDevice):
+class I2CSMBusAdapter(I2CAdapter):
     bus: SMBus
 
     def __init__(self, cfg: I2CConfig):
-        super().__init__(self, cfg)
+        super().__init__(cfg)
 
     def open(self) -> None:
         self.bus = SMBus(self.cfg.bus)
-        self.bus.open()
+        self.bus.open(self.cfg.bus)
 
     def close(self) -> None:
         try:

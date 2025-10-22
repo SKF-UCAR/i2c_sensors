@@ -4,7 +4,7 @@ TI ADC128D818 – 8ch, 12-bit ΔΣ ADC w/ temp sensor and internal 2.56V Vref.
 
 from enum import IntEnum
 from typing import Dict, Any, List, Optional, Tuple
-from .i2c_device import I2CDevice, I2CConfig
+from i2c_sensors.i2c_adapter import I2CAdapter, I2CConfig
 import i2c_sensors.utils as utils
 import time
 import logging
@@ -51,7 +51,6 @@ class ADC128D818Config:
         external Vref divider. E.g. for a 10k/30k divider, multiplier is 4.0 (Vout=Vin*10k/40k).
     """
 
-    _CHAN_ERROR_MSG: str = "Channel index must be within [0..7]"
     start: bool = True
     continuous: bool = True
     disable_mask: int = 0x00
@@ -100,23 +99,27 @@ class ADC128D818:
     """
     TI ADC128D818 – 8ch, 12-bit ΔΣ ADC w/ temp sensor and internal 2.56V Vref.
     """
+    _CHAN_ERROR_MSG: str = "Channel index must be within [0..7]"
 
-    _config: ADC128D818Config = None
-    _device: I2CDevice = None
+    _config: ADC128D818Config
+    _adapter: I2CAdapter
 
-    def __init__(self, base_device: I2CDevice, cfg: I2CConfig = None):
-        self._device = base_device
+    def __init__(self, base_device: I2CAdapter, cfg: Optional[I2CConfig] = None):
+        self._adapter = base_device
         if cfg is not None:
-            self._device.reopen(cfg)
+            self._adapter.reopen(cfg)
 
     def _start(self, enable: bool) -> None:
         # Bit0 START, Bit1 INT_Enable, Bit3 INT_Clear, Bit7 INITIALIZATION
-        cfg = self.read_u8(ADC128D818_REG.REG_CONFIG)
+        cfg = self._adapter.read_u8(ADC128D818_REG.REG_CONFIG)
         if enable:
             cfg |= 0b00000001
         else:
             cfg &= ~0b00000001
-        self.write_u8(ADC128D818_REG.REG_CONFIG, cfg)
+        self._adapter.write_u8(ADC128D818_REG.REG_CONFIG, cfg)
+
+    def open(self) -> None:
+        self._adapter.open()
 
     def configure(self, config: ADC128D818Config) -> None:
         """
@@ -130,7 +133,7 @@ class ADC128D818:
 
         # Reset
         cfg = 0b10000000
-        self._device.write_u8(ADC128D818_REG.REG_CONFIG, cfg)
+        self._adapter.write_u8(ADC128D818_REG.REG_CONFIG, cfg)
         time.sleep(0.01)  # per datasheet, 10ms after clearing START
 
         # wait for ready
@@ -142,27 +145,27 @@ class ADC128D818:
         # set the advanced config:
         # Bit0=1 internal Vref (0=external),
         # Bit1..1=MODE 0..3
-        self._device.write_u8(ADC128D818_REG.REG_ADV_CONFIG, self._config.mode << 1)
+        self._adapter.write_u8(ADC128D818_REG.REG_ADV_CONFIG, self._config.mode << 1)
 
         # Conversion Rate: bit0=1 continuous, 0 low-power; only valid in shutdown
-        self._device.write_u8(
+        self._adapter.write_u8(
             ADC128D818_REG.REG_CONV_RATE, 0x01 if self._config.continuous else 0x00
         )
 
         # Disable channels (1=disable). Only valid in shutdown.
-        self._device.write_u8(
+        self._adapter.write_u8(
             ADC128D818_REG.REG_CH_DISABLE, self._config.disable_mask & 0xFF
         )
 
         # Disable channels interrupt mask.
-        self._device.write_u8(ADC128D818_REG.REG_INT_MASK, 0x00)  # all disabled
+        self._adapter.write_u8(ADC128D818_REG.REG_INT_MASK, 0x00)  # all disabled
 
         # Set limits for all channels (example values here, adjust as needed)
         for i in range(8):
             self.set_limits_raw(i, 0x0000, 0x0FFF)  # channel 0 limits as example
 
         cfg = 0b00000000
-        self._device.write_u8(ADC128D818_REG.REG_CONFIG, cfg)
+        self._adapter.write_u8(ADC128D818_REG.REG_CONFIG, cfg)
         time.sleep(0.01)  # per datasheet, 10ms after clearing START
 
         # Start sampling if requested
@@ -170,34 +173,37 @@ class ADC128D818:
             self._start(True)
 
         self._config.log.debug(
-            f"configure: config      : 0b{self._device.read_u8(ADC128D818_REG.REG_CONFIG):08b}"
+            f"configure: config      : 0b{self._adapter.read_u8(ADC128D818_REG.REG_CONFIG):08b}"
         )
         self._config.log.debug(
-            f"configure: int_status  : 0b{self._device.read_u8(ADC128D818_REG.REG_INT_STATUS):08b}"
+            f"configure: int_status  : 0b{self._adapter.read_u8(ADC128D818_REG.REG_INT_STATUS):08b}"
         )
         self._config.log.debug(
-            f"configure: int_mask    : 0b{self._device.read_u8(ADC128D818_REG.REG_INT_MASK):08b}"
+            f"configure: int_mask    : 0b{self._adapter.read_u8(ADC128D818_REG.REG_INT_MASK):08b}"
         )
         self._config.log.debug(
-            f"configure: conv_rate   : 0b{self._device.read_u8(ADC128D818_REG.REG_CONV_RATE):08b}"
+            f"configure: conv_rate   : 0b{self._adapter.read_u8(ADC128D818_REG.REG_CONV_RATE):08b}"
         )
         self._config.log.debug(
-            f"configure: ch_disable  : 0b{self._device.read_u8(ADC128D818_REG.REG_CH_DISABLE):08b}"
+            f"configure: ch_disable  : 0b{self._adapter.read_u8(ADC128D818_REG.REG_CH_DISABLE):08b}"
         )
         self._config.log.debug(
-            f"configure: deep_shdwn  : 0b{self._device.read_u8(ADC128D818_REG.REG_DEEP_SHUTDOWN):08b}"
+            f"configure: deep_shdwn  : 0b{self._adapter.read_u8(ADC128D818_REG.REG_DEEP_SHUTDOWN):08b}"
         )
         self._config.log.debug(
-            f"configure: adv_config  : 0b{self._device.read_u8(ADC128D818_REG.REG_ADV_CONFIG):08b}"
+            f"configure: adv_config  : 0b{self._adapter.read_u8(ADC128D818_REG.REG_ADV_CONFIG):08b}"
         )
         self._config.log.debug(
-            f"configure: busy_status : 0b{self._device.read_u8(ADC128D818_REG.REG_BUSY_STATUS):08b}"
+            f"configure: busy_status : 0b{self._adapter.read_u8(ADC128D818_REG.REG_BUSY_STATUS):08b}"
         )
+
+    def close(self) -> None:
+        self._adapter.close()
 
     def wait_until_ready(self, timeout: float = 1.0) -> bool:
         """Wait until BUSY_STATUS indicates ready, or timeout (seconds)"""
         t0 = time.time()
-        while self._device.read_u8(ADC128D818_REG.REG_BUSY_STATUS) & 0x03:
+        while self._adapter.read_u8(ADC128D818_REG.REG_BUSY_STATUS) & 0x03:
             if (time.time() - t0) > timeout:
                 return False
             time.sleep(0.01)
@@ -207,10 +213,10 @@ class ADC128D818:
         """
         When in shutdown (or deep shutdown), writing any value to ONE_SHOT triggers a single conversion.
         """
-        self._device.read_u8(
+        self._adapter.read_u8(
             ADC128D818_REG.REG_INT_STATUS
         )  # clear any pending interrupt
-        self._device.write_u8(ADC128D818_REG.REG_ONE_SHOT, 0x01)
+        self._adapter.write_u8(ADC128D818_REG.REG_ONE_SHOT, 0x01)
         if not self.wait_until_ready(timeout=1.0):
             err_msg = "Timeout waiting for ADC128D818 to complete one-shot conversion"
             self._config.log.error(err_msg)
@@ -223,9 +229,9 @@ class ADC128D818:
         # Enter deep shutdown after clearing START; exit by writing 0
         if enable:
             self._start(False)
-            self._device.write_u8(ADC128D818_REG.REG_DEEP_SHUTDOWN, 0x01)
+            self._adapter.write_u8(ADC128D818_REG.REG_DEEP_SHUTDOWN, 0x01)
         else:
-            self._device.write_u8(ADC128D818_REG.REG_DEEP_SHUTDOWN, 0x00)
+            self._adapter.write_u8(ADC128D818_REG.REG_DEEP_SHUTDOWN, 0x00)
 
     def set_limits_raw(self, index: int, low: int, high: int) -> None:
         """Set high/low limit registers for channel index (0..7) using raw 16-bit values"""
@@ -234,16 +240,16 @@ class ADC128D818:
             raise ValueError(self._CHAN_ERROR_MSG)
         # Set low/high limit registers (16-bit values)
         reg = ADC128D818_REG.REG_LIMITS_BASE + index * 2
-        self._device.write_u16_be(reg, high & 0xFFFF)
-        self._device.write_u16_be(reg + 1, low & 0xFFFF)
+        self._adapter.write_u16_be(reg, high & 0xFFFF)
+        self._adapter.write_u16_be(reg + 1, low & 0xFFFF)
 
     def read_channel_raw(self, index: int) -> int:
         """Read raw 16-bit value from channel register (no conversion)"""
         if not (0 <= index <= 7):
             self._config.log.error(self._CHAN_ERROR_MSG)
             raise ValueError(self._CHAN_ERROR_MSG)
-        self._device.read_u8(ADC128D818_REG.REG_INT_STATUS)
-        return self._device.read_u16_be(ADC128D818_REG.REG_READING_BASE + index)
+        self._adapter.read_u8(ADC128D818_REG.REG_INT_STATUS)
+        return self._adapter.read_u16_be(ADC128D818_REG.REG_READING_BASE + index)
 
     def _convert_raw_to_volts(self, raw: int, index: int) -> float:
         # 12-bit value is left-justified in a 16-bit reg in many TI monitors;

@@ -1,13 +1,13 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "i2c_sensors"
 version = "0.1.1"
-description = "Simple Python drivers and utilities for I2C sensors (ADC128D818, INA260)."
+description = "Simple Python drivers and utilities for I2C sensors (ADC128D818, INA260, BMP280)"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
     { name = "Slava Fedorchuk", email = "slavafedor@ucar.edu" }

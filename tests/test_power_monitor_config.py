@@ -1,5 +1,5 @@
 import json
-from i2c_sensors.i2c_device import I2CConfig
+from i2c_sensors.i2c_adapter import I2CConfig
 from i2c_sensors.adc128d818 import ADC128D818Config
 from i2c_sensors.ina260 import INA260Config
 from power_monitor.power_monitor_config import PowerMonitorConfig

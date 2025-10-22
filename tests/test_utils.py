@@ -2,7 +2,7 @@ import time
 import types
 import importlib
 
-from i2c_sensors.i2c_device import I2CConfig, I2CDevice
+from i2c_sensors.i2c_adapter import I2CConfig, I2CAdapter
 
 
 def test_import_utils():
@@ -104,7 +104,7 @@ def test_scan_i2c_found_and_not_found(monkeypatch, caplog):
         def close(self):
             self.closed = True
 
-    monkeypatch.setattr(utils, "I2CDevice", types.SimpleNamespace(I2CDevice=FakeDevice))
+    monkeypatch.setattr(utils, "I2CAdapter", types.SimpleNamespace(I2CAdapter=FakeDevice))
     found = utils.scan_i2c(i2c_device=FakeDevice(I2CConfig(bus=1, address=0x10)), bus=1)
     assert 0x10 in found and 0x20 in found
     assert all(isinstance(a, int) for a in found)

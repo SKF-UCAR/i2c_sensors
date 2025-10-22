@@ -1,18 +1,19 @@
-from i2c_sensors.i2c_device import I2CDevice
+from .i2c_adapter import I2CAdapter
+from typing import List, Iterable
 import time
 
 # BMP280 temperature + pressure sensor driver based on the BMP280 datasheet.
 # Uses i2c_sensors.I2CDevice for bus access.
 
 
-class HW611:
+class BMP280:
     """
     BMP280-compatible driver (keeps the original class name for compatibility).
     Implements calibration readout and compensation per the BMP280 datasheet.
     Provides temperature (°C) and pressure (Pa) properties.
     """
 
-    _device: I2CDevice = None
+    _adapter: I2CAdapter
 
     DEFAULT_ADDRESS = 0x76  # common BMP280 address (0x76 or 0x77)
 
@@ -25,12 +26,12 @@ class HW611:
     REG_CONFIG = 0xF5
     REG_PRESS_MSB = 0xF7  # read 6 bytes: press(3) then temp(3)
 
-    def __init__(self, device: I2CDevice):
+    def __init__(self, adapter: I2CAdapter):
         """
         Initialize BMP280 driver, read calibration data and set a sane default config.
         """
-        self._device = device
-        self._device.open()
+        self._adapter = adapter
+        self._adapter.open()
 
         # calibration parameters (will be filled from the device)
         self._dig_T1 = 0
@@ -56,12 +57,27 @@ class HW611:
         # This is a safe default; adjust oversampling and filter in REG_CONFIG if needed.
         self._write_register(self.REG_CTRL_MEAS, bytes([0x27]))
 
+    # Optional: allow writing ctrl_meas or config registers
+    def configure(self, ctrl_meas: int = 0b01101111, config: int = 0x00) -> None:
+        """
+        Configure the sensor: ctrl_meas is written to REG_CTRL_MEAS, config to REG_CONFIG.
+        Defaults select oversampling x1 for temp/press and normal mode.
+        """
+        self._write_register(self.REG_CONFIG, bytes([config]))
+        self._write_register(self.REG_CTRL_MEAS, bytes([ctrl_meas]))
+
+    def open(self) -> None:
+        self._adapter.open()
+
+    def close(self) -> None:
+        self._adapter.close()
+
     # --- low-level register access ------------------------------------------------
-    def _read_register(self, register: int, length: int) -> bytearray:
-        return self._device.read_block(register, length)
+    def _read_register(self, register: int, length: int) -> List[int]:
+        return self._adapter.read_block(register, length)
 
     def _write_register(self, register: int, data: bytes) -> None:
-        self._device.write_block(register, data)
+        self._adapter.write_block(register, data)
 
     def _u16_le(self, lo: int, hi: int) -> int:
         return (hi << 8) | lo
@@ -75,7 +91,7 @@ class HW611:
     def _wait_until_ready(self, timeout: float = 1.0) -> bool:
         """Wait until BUSY_STATUS indicates ready, or timeout (seconds)"""
         t0 = time.time()
-        while not self._device.read_u8(self.REG_STATUS) & 0x07:
+        while not self._adapter.read_u8(self.REG_STATUS) & 0x07:
             if (time.time() - t0) > timeout:
                 return False
             time.sleep(0.01)
@@ -175,15 +191,6 @@ class HW611:
         _, press_raw = self._read_raw_temp_press()
         return self._raw_to_pressure(press_raw)
 
-    # Optional: allow writing ctrl_meas or config registers
-    def configure(self, ctrl_meas: int = 0b01101111, config: int = 0x00) -> None:
-        """
-        Configure the sensor: ctrl_meas is written to REG_CTRL_MEAS, config to REG_CONFIG.
-        Defaults select oversampling x1 for temp/press and normal mode.
-        """
-        self._write_register(self.REG_CONFIG, bytes([config]))
-        self._write_register(self.REG_CTRL_MEAS, bytes([ctrl_meas]))
-
     def read_all(self) -> dict:
         """
         Read and return all sensor data as a dictionary.
@@ -204,18 +211,18 @@ class HW611:
 
 if __name__ == "__main__":
     import logging
-    from i2c_sensors.i2c_device_ftdi import I2CFtdi
-    from i2c_sensors.i2c_device import I2CConfig
+    from .i2c_ftdi_adapter import I2CFtdiAdapter
+    from .i2c_adapter import I2CConfig
 
     logging.basicConfig(level=logging.DEBUG)
     log = logging.getLogger("BMP280_Test")
 
     # Example usage
-    i2c_cfg = I2CConfig(bus=1, address=HW611.DEFAULT_ADDRESS, freq_hz=100000)
-    i2c_dev = I2CFtdi(url="ftdi://ftdi:232h/1", cfg=i2c_cfg)
+    i2c_cfg = I2CConfig(bus=1, address=BMP280.DEFAULT_ADDRESS, freq_hz=100000)
+    i2c_dev = I2CFtdiAdapter(url="ftdi://ftdi:232h/1", cfg=i2c_cfg)
     i2c_dev.open()
 
-    bmp = HW611(i2c_dev)
+    bmp = BMP280(i2c_dev)
     bmp.configure(ctrl_meas=0b01011111, config=0x00)  # oversampling x1, normal mode
 
     try:

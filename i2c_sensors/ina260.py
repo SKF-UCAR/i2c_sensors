@@ -1,11 +1,11 @@
-from __future__ import annotations
-from dataclasses import dataclass
+# from __future__ import annotations
+# from dataclasses import dataclass
 import logging
 from typing import Dict, Any, Optional
 from enum import IntFlag, IntEnum
 
 import i2c_sensors.utils as utils
-from .i2c_device import I2CDevice, I2CConfig
+from .i2c_adapter import I2CAdapter, I2CConfig
 
 
 # Register addresses (datasheet Table / summary)
@@ -27,7 +27,7 @@ LSB_POWER_W = 10e-3
 DEFAULT_CONFIG_REG = 0x6127  # default reset value 0b0110000100100111
 
 
-@dataclass
+# @dataclass
 class INA260Reading:
     """Simple container for INA260 readings"""
 
@@ -37,6 +37,15 @@ class INA260Reading:
     raw_bus: int
     raw_current: int
     raw_power: int
+
+    def __init__(self, bus_voltage_v: float, current_a: float, power_w: float,
+                 raw_bus: int, raw_current: int, raw_power: int):
+        self.bus_voltage_v = bus_voltage_v
+        self.current_a = current_a
+        self.power_w = power_w
+        self.raw_bus = raw_bus
+        self.raw_current = raw_current
+        self.raw_power = raw_power
 
 
 # Define the mode enums at module level to avoid depending on the enclosing class
@@ -140,13 +149,16 @@ class INA260:
     TI INA260 – precision current/voltage/power monitor with integrated shunt.
     """
 
-    _device: I2CDevice = None
-    _config: INA260Config = None
+    _adapter: I2CAdapter
+    _config: INA260Config
 
-    def __init__(self, base_device: I2CDevice, cfg: I2CConfig = None):
-        self._device = base_device
+    def __init__(self, base_device: I2CAdapter, cfg: Optional[I2CConfig] = None):
+        self._adapter = base_device
         if cfg is not None:
-            self._device.reopen(cfg)
+            self._adapter.reopen(cfg)
+
+    def open(self) -> None:
+        self._adapter.open()
 
     def configure(
         self, config: INA260Config = INA260Config()
@@ -160,12 +172,15 @@ class INA260:
         self._config.log.debug(
             f"configure: REG_CONFIG: 0b{self._config.config_reg:016b}"
         )
-        self._device.write_u16_be(INA260_CONFIG_REG.REG_CONFIG, self._config.config_reg)
+        self._adapter.write_u16_be(INA260_CONFIG_REG.REG_CONFIG, self._config.config_reg)
+
+    def close(self) -> None:
+        self._adapter.close()
 
     def read_all(self) -> INA260Reading:
-        raw_v = self._device.read_u16_be(INA260_CONFIG_REG.REG_BUS_VOLT)
-        raw_i = self._device.read_u16_be(INA260_CONFIG_REG.REG_CURRENT)
-        raw_p = self._device.read_u16_be(INA260_CONFIG_REG.REG_POWER)
+        raw_v = self._adapter.read_u16_be(INA260_CONFIG_REG.REG_BUS_VOLT)
+        raw_i = self._adapter.read_u16_be(INA260_CONFIG_REG.REG_CURRENT)
+        raw_p = self._adapter.read_u16_be(INA260_CONFIG_REG.REG_POWER)
 
         self._config.log.debug(
             f"bus_voltage_v: {(raw_v * LSB_VOLT_V):9.4f} (raw 0x{raw_v:04X})"
@@ -195,3 +210,6 @@ class INA260:
             "raw_current": r.raw_current,
             "raw_power": r.raw_power,
         }
+
+if __name__ == "__main__":
+    ina = INA260(I2CAdapter(I2CConfig(1, 0x40)))

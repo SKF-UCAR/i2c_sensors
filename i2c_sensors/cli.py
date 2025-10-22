@@ -1,10 +1,14 @@
 from __future__ import annotations
 import argparse, time, logging
+
 from .utils import init_logger
-from .i2c_device import I2CConfig
+from .export import write_auto
+from .i2c_adapter import I2CConfig
+from .i2c_ftdi_adapter import I2CFtdiAdapter
+from .i2c_smbus_adapter import I2CSMBusAdapter
+
 from .ina260 import INA260, INA260Config
 from .adc128d818 import ADC128D818, ADC128D818Config
-from .export import write_auto
 
 
 def main():
@@ -30,7 +34,7 @@ def main():
     )
 
     ap.add_argument(
-        "--ftdiURL", type=str, help="FTDI URL (e.g. ftdi://ftdi:1/1)
+        "--ftdiURL", type=str, help="FTDI URL (e.g. ftdi://ftdi:1/1)"
     )
     args = ap.parse_args()
 
@@ -43,7 +47,13 @@ def main():
 
     t0 = time.time()
     if args.ina260 is not None:
-        dev_ina260 = INA260(I2CConfig(args.bus, args.ina260))
+        adp_ina260 = None
+        if args.ftdiURL:
+            adp_ina260 = I2CFtdiAdapter(url=args.ftdiURL, cfg=I2CConfig(args.bus, args.ina260))
+        else:
+            adp_ina260 = I2CSMBusAdapter(I2CConfig(args.bus, args.ina260)) 
+
+        dev_ina260 = INA260(adp_ina260)
         int_conf = (
             INA260Config.AVG_MODE.AVG_MODE_0004
             | INA260Config.VCT_MODE.VCT_MODE_1100US

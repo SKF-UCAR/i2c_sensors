@@ -1,9 +1,21 @@
 import logging
 import argparse, time
+import os
+import sys
 
-from typing import Optional
-import i2c_sensors.utils as utils 
+from typing import Optional, Dict, Any
+
+# Ensure the project root is on sys.path when running this script directly so
+# imports like `import i2c_sensors...` work. If this package is installed into
+# the environment (for example with `pip install -e .`) this is not necessary.
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.abspath(os.path.join(_THIS_DIR, os.pardir))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+import i2c_sensors.utils as utils
 import i2c_sensors.export as export
+from i2c_sensors.i2c_ftdi_adapter import I2CFtdiAdapter
 from i2c_sensors.adc128d818 import ADC128D818
 from i2c_sensors.ina260 import INA260
 from power_monitor.power_monitor_config import PowerMonitorConfig
@@ -21,14 +33,19 @@ class PowerMonitor:
                  config: PowerMonitorConfig):
         self.config = config
         if config.INA260_config is not None:
-            self.ina = INA260(config.INA260_I2C)
+            ina_adapter = I2CFtdiAdapter(url=config.FTDI_URL, cfg=config.INA260_I2C)
+            self.ina = INA260(ina_adapter)
+            self.ina.open()
             self.ina.configure(config.INA260_config)
+
         if config.ADC128D818_config is not None:
-            self.adc = ADC128D818(config.ADC128D818_I2C)
+            adc_adapter = I2CFtdiAdapter(url=config.FTDI_URL, cfg=config.ADC128D818_I2C)
+            self.adc = ADC128D818(adc_adapter)
+            self.adc.open()
             self.adc.configure(config.ADC128D818_config)
 
-    def read_all(self) -> dict:
-        d = {}
+    def read_all(self) -> Dict[str, Any]:
+        d : Dict[str, Any] = {}
         d["_timestamp_"] = int(time.time())
         if self.ina is not None:
             d["ina260"] = self.ina.to_dict()

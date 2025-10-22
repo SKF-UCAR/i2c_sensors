@@ -5,19 +5,21 @@ Thin I²C device base class and helpers
 # from __future__ import annotations
 from typing import Iterable, Dict, Any, List
 
+DEFAULT_BUS_FREQ_HZ: float = 100_000.0  # 100kHz
 
 class I2CConfig:
+    
     bus: int
     address: int
-    freq_hz: int = 100_000  # Default to 100kHz
+    freq_hz: float = DEFAULT_BUS_FREQ_HZ  # Default to 100kHz
 
-    def __init__(self, bus: int, address: int, freq_hz: int = 100_000):
+    def __init__(self, bus: int, address: int, freq_hz: float = DEFAULT_BUS_FREQ_HZ):
         self.bus = bus
         self.address = address
         self.freq_hz = freq_hz
 
 
-class I2CDevice:
+class I2CAdapter:
     """
     Thin base for I²C register devices. Methods are intentionally small & explicit
     to make a later C++ port straightforward.
@@ -82,6 +84,6 @@ class I2CDevice:
 
     # ---- Simple file writer ----------------------------------------------------
     def write_dict_to_file(self, path: str, data: Dict[str, Any]) -> None:
-        from export import write_auto
+        from .export import write_auto
 
         write_auto(path, data)
