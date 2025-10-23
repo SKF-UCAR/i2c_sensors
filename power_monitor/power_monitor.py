@@ -107,7 +107,8 @@ def main():
     finally:
         pm.close()
 
-    pm.config.write_config(args.config or "power_monitor.config")
+    if not args.config:
+        pm.config.write_config("power_monitor.config")
 
 if __name__ == "__main__":
     main()

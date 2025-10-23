@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 from enum import IntFlag, IntEnum
 
 import i2c_sensors.utils as utils
-from .i2c_adapter import I2CAdapter, I2CConfig
+from i2c_sensors.i2c_adapter import I2CConfig, I2CAdapter
 
 
 # Register addresses (datasheet Table / summary)
@@ -212,4 +212,20 @@ class INA260:
         }
 
 if __name__ == "__main__":
-    ina = INA260(I2CAdapter(I2CConfig(1, 0x40)))
+    from i2c_ftdi_adapter import I2CFtdiAdapter
+    log = utils.get_logger("INA260")
+    adapter = I2CFtdiAdapter(url="ftdi://ftdi::P03UM9NA/2", cfg=I2CConfig(1, 0x40))
+    ina = INA260(adapter)
+    ina.open()
+    int_conf = (
+        INA260Config.AVG_MODE.AVG_MODE_0004
+        | INA260Config.VCT_MODE.VCT_MODE_1100US
+        | INA260Config.ITC_MODE.ICT_MODE_1100US
+        | INA260Config.OPERATING_MODE.MODE_SHUNT_BUS_CONT
+    )
+
+    log.info(f"INA260 config: 0x{int_conf:04X}")
+    ina_config = INA260Config(int_conf, log=log)  # default reset value
+    ina.configure(ina_config)
+    print("INA260:", ina.to_dict())
+    ina.close()

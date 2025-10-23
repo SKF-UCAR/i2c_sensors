@@ -295,3 +295,25 @@ class ADC128D818:
                     f"Reading channel {ch}: {volts:9.4f} (raw 0x{raw:04X})"
                 )
         return readings
+
+
+if __name__ == "__main__":
+    import i2c_sensors.utils as utils
+    from i2c_ftdi_adapter import I2CFtdiAdapter
+
+    log = utils.get_logger("ADC128D818")
+    adapter = I2CFtdiAdapter(url="ftdi://ftdi::P03UM9NA/2", cfg=I2CConfig(2, 0x1D))
+    adc = ADC128D818(adapter)
+    adc.open()
+    conf = ADC128D818Config(
+        start=True,
+        continuous=True,
+        disable_mask=0,
+        mode= 0x0,
+        extResistorMultipliers=[2.7, 2.7, 2.7, 5.0, 5.0, 5.0, 2.0, 100.0],
+        log=log,
+    )
+    adc.configure(conf)
+    print("ADC128D818:", adc.read_all())
+    adc.close()
+
