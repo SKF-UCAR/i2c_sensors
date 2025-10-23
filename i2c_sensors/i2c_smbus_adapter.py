@@ -58,3 +58,9 @@ class I2CSMBusAdapter(I2CAdapter):
 
     def read_block(self, reg: int, length: int) -> List[int]:
         return self.bus.read_i2c_block_data(self.cfg.address, reg & 0xFF, length)
+
+    def write_i2c_block_data(self, addr: int, reg: int, data: Iterable[int]) -> None:
+        return self.bus.write_i2c_block_data(addr, reg, data)
+
+    def read_i2c_block_data(self, addr: int, reg: int, length: int) -> List[int]:
+        return self.bus.read_i2c_block_data(addr, reg, length)

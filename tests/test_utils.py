@@ -96,7 +96,7 @@ def test_scan_i2c_found_and_not_found(monkeypatch, caplog):
         def reopen(self, cfg: I2CConfig) -> None:
             self.config = cfg
 
-        def write_block(self, addr, data):
+        def write_u8(self, addr, data):
             if addr in self.address:
                 return  # success
             raise OSError("no device")
@@ -105,7 +105,7 @@ def test_scan_i2c_found_and_not_found(monkeypatch, caplog):
             self.closed = True
 
     monkeypatch.setattr(utils, "I2CAdapter", types.SimpleNamespace(I2CAdapter=FakeDevice))
-    found = utils.scan_i2c(i2c_device=FakeDevice(I2CConfig(bus=1, address=0x10)), bus=1)
+    found = utils.scan_i2c(adapter=FakeDevice(I2CConfig(bus=1, address=0x10)), bus=1)
     assert 0x10 in found and 0x20 in found
     assert all(isinstance(a, int) for a in found)
     # logs mention found devices
@@ -114,7 +114,7 @@ def test_scan_i2c_found_and_not_found(monkeypatch, caplog):
 
     caplog.clear()
     found2 = utils.scan_i2c(
-        i2c_device=FakeDevice(I2CConfig(bus=99, address=0x99), address=[0x99]), bus=99
+        adapter=FakeDevice(I2CConfig(bus=99, address=0x99), address=[0x99]), bus=99
     )
     assert found2 == []
     # should log an error about cannot open bus

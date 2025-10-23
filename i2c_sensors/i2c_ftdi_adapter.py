@@ -1,5 +1,5 @@
 from typing import Iterable, List, Mapping, Any
-from i2c_adapter import I2CConfig, I2CAdapter
+from i2c_sensors.i2c_adapter import I2CConfig, I2CAdapter
 try:
     from pyftdi.i2c import I2cController, I2cPort
 except ImportError as _e:
@@ -64,6 +64,12 @@ class I2CFtdiAdapter(I2CAdapter):
     def read_block(self, reg: int, length: int) -> List[int]:
         _bytes = self._port.read_from(reg & 0xFF, length)
         return [_b & 0xFF for _b in _bytes]
+    
+    def write_i2c_block_data(self, addr: int, reg: int, data: Iterable[int]) -> None:
+        return self._controller.write_i2c_block_data(addr, reg, data)
+
+    def read_i2c_block_data(self, addr: int, reg: int, length: int) -> List[int]:
+        return self._controller.read_i2c_block_data(addr, reg, length)
 
     def close(self) -> None:
         try:
