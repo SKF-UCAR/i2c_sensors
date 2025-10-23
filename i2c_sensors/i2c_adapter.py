@@ -78,6 +78,21 @@ class I2CAdapter:
     def read_block(self, reg: int, length: int) -> List[int]:
         raise NotImplementedError()
 
+    def write_i2c_block_data(self, addr:int, reg: int, data: Iterable[int]) -> None:
+        '''
+        Write a block of data to a specific register of a device at a given I2C address.
+        Added for compatibility with some complex I2C devices which have more then one device on the bus.
+        '''
+        raise NotImplementedError()
+
+    def read_i2c_block_data(self, addr: int, reg: int, length: int) -> List[int]:
+        '''
+        Read a block of data from a specific register of a device at a given I2C address.
+        Added for compatibility with some complex I2C devices which have more then one device on the bus.
+        '''
+        raise NotImplementedError()
+
+
     # # Many I²C devices keep an internal pointer; this allows raw burst reads
     # def read_no_cmd(self, length: int) -> bytes:
     #     raise NotImplementedError()

@@ -115,7 +115,7 @@ def write_json(path: str, obj: dict) -> None:
 
 
 def scan_i2c(
-    i2c_device: I2CAdapter,
+    adapter: I2CAdapter,
     bus: int = 0,
     logger: Optional[Union[str, logging.Logger]] = None,
 ) -> list[int]:
@@ -125,7 +125,7 @@ def scan_i2c(
     logger = _resolve_logger(logger)
     found: list[int] = []
     try:
-        i2c_device.open()
+        adapter.open()
     except Exception as e:
         logger.error(f"Cannot open I2C device: {e}")
         return found
@@ -133,13 +133,13 @@ def scan_i2c(
     for addr in range(0x03, 0x78):
         try:
             config = I2CConfig(bus=bus, address=addr)
-            i2c_device.reopen(config)
-            i2c_device.write_u8(addr, 0)
+            adapter.reopen(config)
+            adapter.write_u8(addr, 0)
             found.append(addr)
             logger.info(f"  Found device at address 0x{addr:02X}")
         except Exception:
             pass
-    i2c_device.close()
+    adapter.close()
     if not found:
         logger.info("  No I2C devices found.")
     return found
