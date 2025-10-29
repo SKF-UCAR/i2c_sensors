@@ -3,6 +3,7 @@
   hosts: { rpi_hosts }
   become: true
   vars:
+    # git_repo_url_for_i2c_sensors: "github.com:NCAR/dsm-i2c-sensors.git"
     i2c_repo: "{git_repo_url_for_i2c_sensors}" | default("https://github.com/SKF-UCAR/i2c_sensors.git")
     install_dir: "{install_dir}" | default("/opt")
     power_entry: "power_monitor.py"
@@ -41,9 +42,15 @@
         requirements: "{{ install_dir }}/i2c_sensors/requirements.txt"
         virtualenv: "{{ install_dir }}/i2c_sensors/.venv"
 
+    - name: Install i2c_sensors package into the virtualenv (editable)
+      pip:
+        name: "{{ install_dir }}/i2c_sensors"
+        virtualenv: "{{ install_dir }}/i2c_sensors/.venv"
+        editable: yes
+
     - name: Enable I2C in config.txt
       lineinfile:
-        path: /boot/config.txt
+        path: /boot/firmware/config.txt
         regexp: "^dtparam=i2c_arm="
         line: "dtparam=i2c_arm=on"
         create: yes
@@ -53,16 +60,23 @@
         name: i2c-dev
         state: present
 
+    - name: Copy power-monitor config file
+      copy:
+        src: "{{ install_dir }}/i2c_sensors/power_monitor/power_monitor.config"
+        dest: "{{ install_dir }}/i2c_sensors/power-monitor.config"
+        mode: "0644"
+
     - name: Create systemd service for power_monitor
       copy:
-        dest: /etc/systemd/system/power_monitor.service
+        dest: /etc/systemd/system/power-monitor.service
         content: |
           [Unit]
-          Description=power_monitor service
+          Description=power-monitor service
           After=network.target
 
           [Service]
-          ExecStart={{ install_dir }}/i2c_sensors/.venv/bin/python {{ install_dir }}/i2c_sensors/{{ power_entry }}
+          ExecStart={{ install_dir }}/i2c_sensors/power-monitor --config {{ install_dir }}/i2c_sensors/power-monitor.config
+          Environment="PATH={{ install_dir }}/i2c_sensors/.venv/bin"
           WorkingDirectory={{ install_dir }}/i2c_sensors
           Restart=always
           User=root
