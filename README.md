@@ -42,19 +42,49 @@ pip install -e .
 ## File structure
 
 ```bash
-/
-├─ i2c_sensors/
-| ├─ adc128d818.py   # ADC128D818 driver
-| ├─ base.py         # I2CDevice base class
-| ├─ cli.py          # Command-line tool
-| ├─ export.py       # JSON/CSV exporters
-| ├─ ina260.py       # INA260 driver
-| └─ utils.py        # log, config, scheduler, i2c dev search
-├─ demo_read.py      # Simple usage demo
-├─ power_monitor/    # App uses both INA260 and ADC128D818
-| ├─ power_monitor.py
-└─ udp_monitor/
-  └─ udp_monitor.py        # Prints all the traffic for the UDP port
+./
+├── docs
+│   ├── ADC128d818_Modes.png
+│   ├── BMP280-Datasheet.pdf
+│   ├── DSM_PWR_i2C_registers.xlsx
+│   ├── DSP_Power_revB_I2C.pptx
+│   ├── FTDI_i2c_wiring.png
+│   ├── GPIO-Pinout-Diagram-2.png
+│   ├── I2C_Basic_Address_and_Data_Frames.jpg
+│   ├── image.png
+│   ├── TI_ADC_adc128d818.pdf
+│   └── TI_Power_Monitor_ina260.pdf
+├── i2c_sensors
+│   ├── adc128d818.py           # ADC128D818 driver
+│   ├── bmp280.py               # BMP280 driver
+│   ├── cli.py                  # Command-line tool
+│   ├── ds3231.py               # DS3231 RTC driver
+│   ├── export.py               # Exporters (CSV, JSON, PROM)
+│   ├── i2c_adapter.py          # Base I2C adapter
+│   ├── i2c_ftdi_adapter.py     # FTDI I2C adapter
+│   ├── i2c_smbus_adapter.py    # SMBus I2C adapter
+│   ├── ina260.py               # INA260 driver
+│   ├── __init__.py
+│   └── utils.py                # logging, config, scheduler, i2c device search
+├── power_monitor               # App uses both INA260 and ADC128D818
+│   ├── __init__.py
+│   ├── power_monitor.config
+│   ├── power_monitor_config.py
+│   └── power_monitor.py
+├── tests                       # Unit tests for the library
+│   ├── test_export.py
+│   ├── test_power_monitor_config.py
+│   └── test_utils.py
+├── udp_monitor
+│   └── udp_monitor.py          # Prints all the traffic for the UDP port
+├── demo_read.py                # Simple usage demo
+├── install_i2c_pm.yml          # Ansible playbook to install power-monitor as a service
+├── LICENSE
+├── pyproject.toml              # Project metadata and build system requirements
+├── README.md                   # This file
+└── requirements.txt
+
+
 ```
 
 ---
@@ -159,6 +189,8 @@ print("ADC128D818:", adc.read_all())
 adc.close()
 ```
 
+---
+
 ## Other examples and apps
 
 ### power_monitor.py
@@ -179,6 +211,154 @@ options:
 ```bash
 UNIX_timestamp, ADC128_ch0, ..., ADC128_ch7, INA260_V, INA260_A, INA260_W
 ```
+
+#### power-monitor.config
+
+Config file contains settings for both chips and parameters for power-monitor itself:
+
+```json
+{
+  "ADC128D818_I2C": {
+    "bus": 2,
+    "address": 29,
+    "freq_hz": 100000.0
+  },
+  "ADC128D818_config": {
+    "start": false,
+    "continuous": false,
+    "disable_mask": 0,
+    "mode": 0,
+    "extResistorMultipliers": [
+      2.7,
+      2.7,
+      2.7,
+      5.0,
+      5.0,
+      5.0,
+      2.0,
+      100.0
+    ]
+  },
+  "INA260_I2C": {
+    "bus": 2,
+    "address": 64,
+    "freq_hz": 100000.0
+  },
+  "INA260_config": {
+    "config_reg": 807
+  },
+  "FTDI_URL":"ftdi://ftdi::P03UM9NA/2",
+  "Read_Interval": 15.0,
+  "UDP_Addr": "127.0.0.1",
+  "UDP_Port": 9999
+}
+```
+
+##### xx_I2C
+
+Those sections are self-explanatory.
+
+##### ADC128D818_config
+
+This section contains arguments to configure the **ADC128D818** chip.
+
+- **start**: set START bit - i.e. start measures immediately
+- **continuous**: if `False`, set low-power conversion (convert all enabled, then shutdown), if `True` - continues measures and conversions.
+- **disable_mask**: bit _i_ disables channel _i_ when set. Must be done in shutdown mode.
+- **mode**: modes of operation (more info see below and in [TI_ADC_adc128d818.pdf](./docs/TI_ADC_adc128d818.pdf))
+
+- **extResistorMultipliers**: List of 8 floats, one per channel, to scale readings if using external `Vref` divider. E.g. for a 10k/30k divider, multiplier is 4.0 _**(Vout=Vin*10k/40k)**_.
+
+|Ch.| Mode 0 | Mode 1 | Mode 2 | Mode 3 |
+|---|---|---|---|---|
+|1| IN0 | IN0 | IN0(+)/IN1(-) | IN0 |
+|2| IN1 | IN1 | IN2(+)/IN3(-) | IN1 |
+|3| IN2 | IN2 | IN4(+)/IN5(-) | IN2 |
+|4| IN3 | IN3 | IN6(+)/IN7(-) | IN3 |
+|5| IN4 | IN4 | | IN4(+)/IN5(-) |
+|6| IN5 | IN5 | | IN6(+)/IN7(-) |
+|7| IN6 | IN6 | | |
+|8| N/C | IN7 | | |
+|Local Temp |Yes|No|Yes|Yes|
+
+##### INA260_config
+
+This section contains arguments to configure the **INA260** chip.
+
+- **config_reg**: sets **INA260**'s configuration register. (see more info: [TI_Power_Monitor_ina260.pdf](./docs/TI_Power_Monitor_ina260.pdf))
+
+##### Table 5. Configuration Register Field Descriptions
+
+|Bit |Field |Type |Reset |Description|
+|---|---|---|---|---|
+|15 | RST|  R/W | 0 | Reset BitSetting this bit to '1' generates a system reset that is the same as power-on reset. Resets all registers to default values; this bit self-clears.|
+|14..12| — | R | 110 ||
+|11..9| AVG | R/W | 000 | Averaging Mode (see below)|
+|8..6| VBUSCT| R/W | 100 | Bus Voltage Conversion Time (see below)|
+|5..3| ISHCT |R/W |100 | Shunt Current Conversion Time (see below)|
+|2..0| MODE |R/W| 111| Operating Mode (see below)|
+
+##### Averaging Mode
+
+Determines the number of samples that are collected and averaged. The following shows all the `AVG` bit settings and related number of averages for each bit setting.
+
+|AVG2 | AVG1 |AVG0 | # of averages|
+|---|---|---|---|
+| 0| 0| 0| 1 (1)|
+| 0| 0| 1| 4|
+| 0| 1| 0| 16|
+| 0| 1| 1| 64|
+| 1| 0| 0| 128|
+| 1| 0| 1| 256|
+| 1| 1| 0| 512|
+| 1| 1| 1| 1024|
+
+##### Bus Voltage Conversion Time
+
+Sets the conversion time for the bus voltage measurement. The following shows the `VBUSCT` bit options and related conversion times for each bit setting.
+
+|VBUSCT2|VBUSCT1|VBUSCT0|conversion time|
+|---|---|---|---|
+|0| 0| 0| 140 μs|
+|0| 0| 1| 204 μs|
+|0| 1| 0| 332 μs|
+|0| 1| 1| 588 μs|
+|1| 0| 0| 1.1 (1) ms|
+|1| 0| 1| 2.116 ms|
+|1| 1| 0| 4.156 ms|
+|1| 1| 1| 8.244 ms|
+
+##### Shunt Current Conversion Time
+
+The following shows the `ISHCT` bit options and related conversion times for each bit
+setting.
+
+|ISHCT2|ISHCT1|ISHCT0| conversion time|
+|---|---|---|---|
+|0| 0| 0| 140 μs|
+|0| 0| 1| 204 μs|
+|0| 1| 0| 332 μs|
+|0| 1| 1| 588 μs|
+|1| 0| 0| 1.1 (1) ms|
+|1| 0| 1| 2.116 ms|
+|1| 1| 0| 4.156 ms|
+|1| 1| 1| 8.244 ms|
+
+##### Operating Mode
+
+Selects continuous, triggered, or power-down mode of operation. These bits default to
+continuous shunt and bus measurement mode. The following shows mode settings.
+
+|MODE2|MODE1|MODE0|mode|
+|---|---|---|---|
+|0|0|0| Power-Down (or Shutdown) |
+|0|0|1| Shunt Current, Triggered|
+|0|1|0| Bus Voltage, Triggered|
+|0|1|1| Shunt Current and Bus Voltage, Triggered|
+|1|0|0| Power-Down (or Shutdown)|
+|1|0|1| Shunt Current, Continuous|
+|1|1|0| Bus Voltage, Continuous|
+|1|1|1| Shunt Current and Bus Voltage, Continuous(1)|
 
 ### udp_monitor
 
@@ -232,14 +412,13 @@ options:
 
 ---
 
-
 ## Using metrics via Prometheus
 
 ### 1. Exporters Available as Debian Packages
 
 #### Node Exporter
 
-```
+```bash
 sudo apt update
 sudo apt install prometheus-node-exporter
 ```
@@ -257,6 +436,7 @@ ARGS="--collector.textfile.directory=/var/lib/node_exporter"
 ```
 
 Then:
+
 ```bash
 sudo mkdir -p /var/lib/node_exporter
 sudo systemctl restart prometheus-node-exporter
@@ -270,11 +450,6 @@ systemctl status prometheus-node-exporter.service
 
 __Note__: you might need to change permissions to the `/var/lib/node_exporter` folder. 
 
-
-## TODO
-
-- [x] finish README.md
-- [x] add `requirements.txt`
 
 ## License
 
